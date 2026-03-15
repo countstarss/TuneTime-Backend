@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { PrismaModule } from './prisma/prisma.module'; // 导入 PrismaModule
-import { AuthModule } from './auth/auth.module'; // 导入 AuthModule
+import { PrismaModule } from './prisma/prisma.module';
+import { AuthModule } from './auth/auth.module';
+import { SubjectsModule } from './subjects/subjects.module';
 
 @Module({
-  imports: [PrismaModule, AuthModule], // 将 AuthModule 添加到 imports 数组
+  imports: [PrismaModule, AuthModule, SubjectsModule],
   controllers: [AppController],
   providers: [AppService],
 })
