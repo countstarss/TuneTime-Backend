@@ -8,6 +8,7 @@ import { BookingsModule } from './bookings/bookings.module';
 import { GuardiansModule } from './guardians/guardians.module';
 import { LessonsModule } from './lessons/lessons.module';
 import { StudentsModule } from './students/students.module';
+import { TeacherReviewsModule } from './teacher-reviews/teacher-reviews.module';
 import { TeachersModule } from './teachers/teachers.module';
 import { SubjectsModule } from './subjects/subjects.module';
 
@@ -18,6 +19,7 @@ import { SubjectsModule } from './subjects/subjects.module';
     AddressesModule,
     BookingsModule,
     LessonsModule,
+    TeacherReviewsModule,
     SubjectsModule,
     GuardiansModule,
     StudentsModule,
