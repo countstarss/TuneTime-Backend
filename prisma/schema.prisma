@@ -60,6 +60,7 @@ enum GuardianRelation {
 }
 
 enum BookingStatus {
+  PENDING_ACCEPTANCE
   PENDING_PAYMENT
   CONFIRMED
   IN_PROGRESS
@@ -166,6 +167,7 @@ enum CredentialType {
   ID_CARD
   DEGREE
   CERTIFICATE
+  NO_CRIMINAL_RECORD
   OTHER
 }
 
@@ -327,6 +329,10 @@ model TeacherProfile {
   ratingAvg             Decimal                   @default(0) @map("rating_avg") @db.Decimal(4, 2)
   ratingCount           Int                       @default(0) @map("rating_count")
   totalCompletedLessons Int                       @default(0) @map("total_completed_lessons")
+  agreementAcceptedAt   DateTime?                 @map("agreement_accepted_at")
+  agreementVersion      String?                   @map("agreement_version")
+  interviewedAt         DateTime?                 @map("interviewed_at")
+  interviewNotes        String?                   @map("interview_notes")
   onboardingCompletedAt DateTime?                 @map("onboarding_completed_at")
   createdAt             DateTime                  @default(now()) @map("created_at")
   updatedAt             DateTime                  @updatedAt @map("updated_at")
@@ -449,9 +455,10 @@ model TeacherCredential {
 
 model StudentProfile {
   id            String     @id @default(cuid())
-  userId        String     @unique @map("user_id")
+  userId        String?    @unique @map("user_id")
   displayName   String     @map("display_name")
   gradeLevel    GradeLevel @map("grade_level")
+  dateOfBirth   DateTime?  @map("date_of_birth") @db.Date
   schoolName    String?    @map("school_name")
   learningGoals String?    @map("learning_goals")
   specialNeeds  String?    @map("special_needs")
@@ -459,7 +466,7 @@ model StudentProfile {
   createdAt     DateTime   @default(now()) @map("created_at")
   updatedAt     DateTime   @updatedAt @map("updated_at")
 
-  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User?             @relation(fields: [userId], references: [id], onDelete: Cascade)
   guardians    StudentGuardian[]
   bookings     Booking[]
   lessons      Lesson[]
@@ -547,10 +554,13 @@ model Booking {
   startAt            DateTime                   @map("start_at")
   endAt              DateTime                   @map("end_at")
   timezone           String                     @default("Asia/Shanghai")
-  status             BookingStatus              @default(PENDING_PAYMENT)
+  status             BookingStatus              @default(PENDING_ACCEPTANCE)
   cancellationReason BookingCancellationReason? @map("cancellation_reason")
   cancelledAt        DateTime?                  @map("cancelled_at")
   cancelledByUserId  String?                    @map("cancelled_by_user_id")
+  isTrial            Boolean                    @default(false) @map("is_trial")
+  teacherAcceptedAt  DateTime?                  @map("teacher_accepted_at")
+  guardianConfirmedAt DateTime?                 @map("guardian_confirmed_at")
   hourlyRate         Decimal                    @map("hourly_rate") @db.Decimal(10, 2)
   durationMinutes    Int                        @map("duration_minutes")
   subtotalAmount     Decimal                    @map("subtotal_amount") @db.Decimal(12, 2)
@@ -561,6 +571,7 @@ model Booking {
   currency           Currency                   @default(CNY)
   paymentStatus      PaymentStatus              @default(UNPAID) @map("payment_status")
   paymentDueAt       DateTime?                  @map("payment_due_at")
+  planSummary        String?                    @map("plan_summary")
   notes              String?
   createdAt          DateTime                   @default(now()) @map("created_at")
   updatedAt          DateTime                   @updatedAt @map("updated_at")
@@ -592,10 +603,20 @@ model Lesson {
   teacherProfileId String                 @map("teacher_profile_id")
   studentProfileId String                 @map("student_profile_id")
   attendanceStatus LessonAttendanceStatus @default(SCHEDULED) @map("attendance_status")
+  checkInAt        DateTime?              @map("check_in_at")
+  checkInLatitude  Decimal?               @map("check_in_latitude") @db.Decimal(10, 7)
+  checkInLongitude Decimal?               @map("check_in_longitude") @db.Decimal(10, 7)
+  checkInAddress   String?                @map("check_in_address")
   startedAt        DateTime?              @map("started_at")
   endedAt          DateTime?              @map("ended_at")
+  checkOutAt       DateTime?              @map("check_out_at")
+  checkOutLatitude Decimal?               @map("check_out_latitude") @db.Decimal(10, 7)
+  checkOutLongitude Decimal?              @map("check_out_longitude") @db.Decimal(10, 7)
+  checkOutAddress  String?                @map("check_out_address")
   teacherSummary   String?                @map("teacher_summary")
   homework         String?
+  outcomeVideoUrl  String?                @map("outcome_video_url")
+  feedbackSubmittedAt DateTime?           @map("feedback_submitted_at")
   guardianFeedback String?                @map("guardian_feedback")
   createdAt        DateTime               @default(now()) @map("created_at")
   updatedAt        DateTime               @updatedAt @map("updated_at")
@@ -616,7 +637,10 @@ model TeacherReview {
   studentProfileId  String   @map("student_profile_id")
   guardianProfileId String?  @map("guardian_profile_id")
   rating            Int
+  lessonQualityRating Int?   @map("lesson_quality_rating")
+  teacherPerformanceRating Int? @map("teacher_performance_rating")
   comment           String?
+  improvementNotes  String?  @map("improvement_notes")
   tags              Json?
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
