@@ -91,3 +91,25 @@ pnpm prisma:migrate:deploy
 - 管理后台：`AdminAuditLog`
 
 该结构已为三端能力预留了完整关系与索引，可直接进入 API 开发。
+
+## Auth API（邮箱密码）
+
+- `POST /auth/register`
+  - body: `{ "name"?: string, "email": string, "password": string }`
+- `POST /auth/login`
+  - body: `{ "email": string, "password": string }`
+- `GET /auth/me`
+  - header: `Authorization: Bearer <accessToken>`
+
+`register/login` 返回：
+
+```json
+{
+  "accessToken": "jwt-token",
+  "user": {
+    "id": "user_id",
+    "name": "User Name",
+    "email": "user@example.com"
+  }
+}
+```

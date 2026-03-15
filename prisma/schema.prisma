@@ -190,6 +190,7 @@ model User {
   updatedAt     DateTime   @updatedAt @map("updated_at")
 
   accounts                       Account[]
+  passwordCredential             PasswordCredential?
   sessions                       Session[]
   authenticators                 Authenticator[]
   roles                          UserRole[]
@@ -207,6 +208,18 @@ model User {
 
   @@index([status])
   @@map("users")
+}
+
+model PasswordCredential {
+  id           String   @id @default(cuid())
+  userId       String   @unique @map("user_id")
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("password_credentials")
 }
 
 model Account {
