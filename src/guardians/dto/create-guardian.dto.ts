@@ -46,7 +46,8 @@ export class CreateGuardianDto {
   emergencyContactPhone?: string;
 
   @ApiPropertyOptional({
-    description: '默认服务地址 ID。若传入，系统会校验该地址是否属于当前 userId。',
+    description:
+      '默认服务地址 ID。若传入，系统会校验该地址是否属于当前 userId。',
     example: 'cmc123addr001',
   })
   @IsOptional()

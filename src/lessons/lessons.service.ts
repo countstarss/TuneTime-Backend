@@ -75,7 +75,10 @@ export class LessonsService {
     return candidates.includes(status);
   }
 
-  private hasBookingStatus(status: BookingStatus, candidates: BookingStatus[]): boolean {
+  private hasBookingStatus(
+    status: BookingStatus,
+    candidates: BookingStatus[],
+  ): boolean {
     return candidates.includes(status);
   }
 
@@ -166,7 +169,9 @@ export class LessonsService {
     return lesson;
   }
 
-  private async findLessonByBookingIdOrThrow(bookingId: string): Promise<LessonWithRelations> {
+  private async findLessonByBookingIdOrThrow(
+    bookingId: string,
+  ): Promise<LessonWithRelations> {
     const lesson = await this.prisma.lesson.findUnique({
       where: { bookingId },
       include: this.getLessonInclude(),
@@ -234,9 +239,15 @@ export class LessonsService {
 
     const where: Prisma.LessonWhereInput = {
       ...(query.bookingId ? { bookingId: query.bookingId.trim() } : {}),
-      ...(query.teacherProfileId ? { teacherProfileId: query.teacherProfileId.trim() } : {}),
-      ...(query.studentProfileId ? { studentProfileId: query.studentProfileId.trim() } : {}),
-      ...(query.attendanceStatus ? { attendanceStatus: query.attendanceStatus } : {}),
+      ...(query.teacherProfileId
+        ? { teacherProfileId: query.teacherProfileId.trim() }
+        : {}),
+      ...(query.studentProfileId
+        ? { studentProfileId: query.studentProfileId.trim() }
+        : {}),
+      ...(query.attendanceStatus
+        ? { attendanceStatus: query.attendanceStatus }
+        : {}),
       ...(query.createdAtFrom || query.createdAtTo
         ? {
             createdAt: {
@@ -251,7 +262,7 @@ export class LessonsService {
         : {}),
     };
 
-    const [items, total] = await this.prisma.$transaction([
+    const [items, total] = await Promise.all([
       this.prisma.lesson.findMany({
         where,
         include: this.getLessonInclude(),
@@ -283,8 +294,12 @@ export class LessonsService {
 
   async update(id: string, dto: UpdateLessonDto): Promise<LessonResponseDto> {
     const current = await this.findLessonOrThrow(id);
-    const startedAt = dto.startedAt ? this.parseDate(dto.startedAt, 'startedAt') : current.startedAt;
-    const endedAt = dto.endedAt ? this.parseDate(dto.endedAt, 'endedAt') : current.endedAt;
+    const startedAt = dto.startedAt
+      ? this.parseDate(dto.startedAt, 'startedAt')
+      : current.startedAt;
+    const endedAt = dto.endedAt
+      ? this.parseDate(dto.endedAt, 'endedAt')
+      : current.endedAt;
 
     if (startedAt && endedAt && endedAt < startedAt) {
       throw new BadRequestException('课程结束时间不能早于开始时间');
@@ -296,12 +311,21 @@ export class LessonsService {
         startedAt,
         endedAt,
         teacherSummary:
-          dto.teacherSummary !== undefined ? dto.teacherSummary.trim() || null : current.teacherSummary,
-        homework: dto.homework !== undefined ? dto.homework.trim() || null : current.homework,
+          dto.teacherSummary !== undefined
+            ? dto.teacherSummary.trim() || null
+            : current.teacherSummary,
+        homework:
+          dto.homework !== undefined
+            ? dto.homework.trim() || null
+            : current.homework,
         outcomeVideoUrl:
-          dto.outcomeVideoUrl !== undefined ? dto.outcomeVideoUrl.trim() || null : current.outcomeVideoUrl,
+          dto.outcomeVideoUrl !== undefined
+            ? dto.outcomeVideoUrl.trim() || null
+            : current.outcomeVideoUrl,
         guardianFeedback:
-          dto.guardianFeedback !== undefined ? dto.guardianFeedback.trim() || null : current.guardianFeedback,
+          dto.guardianFeedback !== undefined
+            ? dto.guardianFeedback.trim() || null
+            : current.guardianFeedback,
         feedbackSubmittedAt:
           dto.feedbackSubmittedAt !== undefined
             ? dto.feedbackSubmittedAt
@@ -322,8 +346,12 @@ export class LessonsService {
       throw new BadRequestException('只有待上课状态的课程才可以签到');
     }
 
-    const checkInAt = dto.checkInAt ? this.parseDate(dto.checkInAt, 'checkInAt') : new Date();
-    const startedAt = dto.startedAt ? this.parseDate(dto.startedAt, 'startedAt') : checkInAt;
+    const checkInAt = dto.checkInAt
+      ? this.parseDate(dto.checkInAt, 'checkInAt')
+      : new Date();
+    const startedAt = dto.startedAt
+      ? this.parseDate(dto.startedAt, 'startedAt')
+      : checkInAt;
 
     const lesson = await this.prisma.$transaction(async (tx) => {
       const updatedLesson = await tx.lesson.update({
@@ -350,7 +378,10 @@ export class LessonsService {
     return this.toResponse(lesson);
   }
 
-  async checkOut(id: string, dto: CheckOutLessonDto): Promise<LessonResponseDto> {
+  async checkOut(
+    id: string,
+    dto: CheckOutLessonDto,
+  ): Promise<LessonResponseDto> {
     const current = await this.findLessonOrThrow(id);
 
     if (
@@ -362,9 +393,14 @@ export class LessonsService {
       throw new BadRequestException('当前课程状态不允许签退');
     }
 
-    const checkOutAt = dto.checkOutAt ? this.parseDate(dto.checkOutAt, 'checkOutAt') : new Date();
-    const endedAt = dto.endedAt ? this.parseDate(dto.endedAt, 'endedAt') : checkOutAt;
-    const startedAt = current.startedAt ?? current.checkInAt ?? current.booking.startAt;
+    const checkOutAt = dto.checkOutAt
+      ? this.parseDate(dto.checkOutAt, 'checkOutAt')
+      : new Date();
+    const endedAt = dto.endedAt
+      ? this.parseDate(dto.endedAt, 'endedAt')
+      : checkOutAt;
+    const startedAt =
+      current.startedAt ?? current.checkInAt ?? current.booking.startAt;
 
     if (endedAt < startedAt) {
       throw new BadRequestException('课程结束时间不能早于开始时间');
@@ -438,12 +474,21 @@ export class LessonsService {
       where: { id },
       data: {
         teacherSummary:
-          dto.teacherSummary !== undefined ? dto.teacherSummary.trim() || null : current.teacherSummary,
-        homework: dto.homework !== undefined ? dto.homework.trim() || null : current.homework,
+          dto.teacherSummary !== undefined
+            ? dto.teacherSummary.trim() || null
+            : current.teacherSummary,
+        homework:
+          dto.homework !== undefined
+            ? dto.homework.trim() || null
+            : current.homework,
         outcomeVideoUrl:
-          dto.outcomeVideoUrl !== undefined ? dto.outcomeVideoUrl.trim() || null : current.outcomeVideoUrl,
+          dto.outcomeVideoUrl !== undefined
+            ? dto.outcomeVideoUrl.trim() || null
+            : current.outcomeVideoUrl,
         guardianFeedback:
-          dto.guardianFeedback !== undefined ? dto.guardianFeedback.trim() || null : current.guardianFeedback,
+          dto.guardianFeedback !== undefined
+            ? dto.guardianFeedback.trim() || null
+            : current.guardianFeedback,
         feedbackSubmittedAt: dto.feedbackSubmittedAt
           ? this.parseDate(dto.feedbackSubmittedAt, 'feedbackSubmittedAt')
           : new Date(),
@@ -457,7 +502,12 @@ export class LessonsService {
   async remove(id: string): Promise<DeleteLessonResponseDto> {
     const current = await this.findLessonOrThrow(id);
 
-    if (!this.hasAttendanceStatus(current.attendanceStatus, this.removableStatuses)) {
+    if (
+      !this.hasAttendanceStatus(
+        current.attendanceStatus,
+        this.removableStatuses,
+      )
+    ) {
       throw new BadRequestException('当前课程状态不允许删除');
     }
 

@@ -59,7 +59,9 @@ export class AddressesController {
     description: '查询成功。',
     type: AddressListResponseDto,
   })
-  findAll(@Query() query: ListAddressesQueryDto): Promise<AddressListResponseDto> {
+  findAll(
+    @Query() query: ListAddressesQueryDto,
+  ): Promise<AddressListResponseDto> {
     return this.addressesService.findAll(query);
   }
 

@@ -32,25 +32,37 @@ export class ListBookingsQueryDto {
   @MaxLength(64)
   keyword?: string;
 
-  @ApiPropertyOptional({ description: '按老师档案 ID 筛选。', example: 'cmc123teacher001' })
+  @ApiPropertyOptional({
+    description: '按老师档案 ID 筛选。',
+    example: 'cmc123teacher001',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(64)
   teacherProfileId?: string;
 
-  @ApiPropertyOptional({ description: '按学生档案 ID 筛选。', example: 'cmc123student001' })
+  @ApiPropertyOptional({
+    description: '按学生档案 ID 筛选。',
+    example: 'cmc123student001',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(64)
   studentProfileId?: string;
 
-  @ApiPropertyOptional({ description: '按家长档案 ID 筛选。', example: 'cmc123guardian001' })
+  @ApiPropertyOptional({
+    description: '按家长档案 ID 筛选。',
+    example: 'cmc123guardian001',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(64)
   guardianProfileId?: string;
 
-  @ApiPropertyOptional({ description: '按科目 ID 筛选。', example: 'cmc123subject001' })
+  @ApiPropertyOptional({
+    description: '按科目 ID 筛选。',
+    example: 'cmc123subject001',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(64)
@@ -111,7 +123,11 @@ export class ListBookingsQueryDto {
   @Min(1)
   page = 1;
 
-  @ApiPropertyOptional({ description: '每页数量，最大 100。', example: 20, default: 20 })
+  @ApiPropertyOptional({
+    description: '每页数量，最大 100。',
+    example: 20,
+    default: 20,
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt()

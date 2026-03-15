@@ -4,11 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import {
-  BookingStatus,
-  Prisma,
-  TeacherReview,
-} from '@prisma/client';
+import { BookingStatus, Prisma, TeacherReview } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTeacherReviewDto } from './dto/create-teacher-review.dto';
 import { ListTeacherReviewsQueryDto } from './dto/list-teacher-reviews-query.dto';
@@ -59,7 +55,10 @@ export class TeacherReviewsService {
     return typeof value === 'number' ? value : Number(value.toString());
   }
 
-  private hasBookingStatus(status: BookingStatus, candidates: BookingStatus[]): boolean {
+  private hasBookingStatus(
+    status: BookingStatus,
+    candidates: BookingStatus[],
+  ): boolean {
     return candidates.includes(status);
   }
 
@@ -104,7 +103,9 @@ export class TeacherReviewsService {
     } satisfies Prisma.TeacherReviewInclude;
   }
 
-  private toResponse(review: TeacherReviewWithRelations): TeacherReviewResponseDto {
+  private toResponse(
+    review: TeacherReviewWithRelations,
+  ): TeacherReviewResponseDto {
     return {
       id: review.id,
       bookingId: review.bookingId,
@@ -142,7 +143,9 @@ export class TeacherReviewsService {
     };
   }
 
-  private async findReviewOrThrow(id: string): Promise<TeacherReviewWithRelations> {
+  private async findReviewOrThrow(
+    id: string,
+  ): Promise<TeacherReviewWithRelations> {
     const review = await this.prisma.teacherReview.findUnique({
       where: { id },
       include: this.getReviewInclude(),
@@ -267,9 +270,15 @@ export class TeacherReviewsService {
 
     const where: Prisma.TeacherReviewWhereInput = {
       ...(query.bookingId ? { bookingId: query.bookingId.trim() } : {}),
-      ...(query.teacherProfileId ? { teacherProfileId: query.teacherProfileId.trim() } : {}),
-      ...(query.studentProfileId ? { studentProfileId: query.studentProfileId.trim() } : {}),
-      ...(query.guardianProfileId ? { guardianProfileId: query.guardianProfileId.trim() } : {}),
+      ...(query.teacherProfileId
+        ? { teacherProfileId: query.teacherProfileId.trim() }
+        : {}),
+      ...(query.studentProfileId
+        ? { studentProfileId: query.studentProfileId.trim() }
+        : {}),
+      ...(query.guardianProfileId
+        ? { guardianProfileId: query.guardianProfileId.trim() }
+        : {}),
       ...(keyword
         ? {
             OR: [
@@ -295,7 +304,7 @@ export class TeacherReviewsService {
         : {}),
     };
 
-    const [items, total] = await this.prisma.$transaction([
+    const [items, total] = await Promise.all([
       this.prisma.teacherReview.findMany({
         where,
         include: this.getReviewInclude(),
@@ -355,7 +364,9 @@ export class TeacherReviewsService {
       displayName: teacher.displayName,
       ratingAvg: this.roundRating(this.toNumber(teacher.ratingAvg)),
       ratingCount: teacher.ratingCount,
-      lessonQualityRatingAvg: this.roundRating(aggregate._avg.lessonQualityRating),
+      lessonQualityRatingAvg: this.roundRating(
+        aggregate._avg.lessonQualityRating,
+      ),
       teacherPerformanceRatingAvg: this.roundRating(
         aggregate._avg.teacherPerformanceRating,
       ),
@@ -385,12 +396,18 @@ export class TeacherReviewsService {
             dto.teacherPerformanceRating !== undefined
               ? dto.teacherPerformanceRating
               : current.teacherPerformanceRating,
-          comment: dto.comment !== undefined ? dto.comment?.trim() || null : current.comment,
+          comment:
+            dto.comment !== undefined
+              ? dto.comment?.trim() || null
+              : current.comment,
           improvementNotes:
             dto.improvementNotes !== undefined
               ? dto.improvementNotes?.trim() || null
               : current.improvementNotes,
-          tags: dto.tags !== undefined ? dto.tags : this.normalizeTags(current.tags),
+          tags:
+            dto.tags !== undefined
+              ? dto.tags
+              : this.normalizeTags(current.tags),
         },
         include: this.getReviewInclude(),
       });

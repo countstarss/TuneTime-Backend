@@ -74,17 +74,18 @@ describe('StudentsService', () => {
 
   it('should create student with guardian bindings', async () => {
     prisma.guardianProfile.findUnique.mockResolvedValue({ id: 'guardian_1' });
-    prisma.$transaction.mockImplementation(async (callback: (tx: typeof prisma) => Promise<unknown>) =>
-      callback({
-        studentProfile: {
-          create: jest.fn().mockResolvedValue({ id: 'student_1' }),
-          findUniqueOrThrow: jest.fn().mockResolvedValue(studentEntity),
-        },
-        studentGuardian: {
-          updateMany: jest.fn().mockResolvedValue({ count: 0 }),
-          create: jest.fn().mockResolvedValue({}),
-        },
-      } as never),
+    prisma.$transaction.mockImplementation(
+      async (callback: (tx: typeof prisma) => Promise<unknown>) =>
+        callback({
+          studentProfile: {
+            create: jest.fn().mockResolvedValue({ id: 'student_1' }),
+            findUniqueOrThrow: jest.fn().mockResolvedValue(studentEntity),
+          },
+          studentGuardian: {
+            updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+            create: jest.fn().mockResolvedValue({}),
+          },
+        } as never),
     );
 
     const result = await service.create({
@@ -128,7 +129,9 @@ describe('StudentsService', () => {
   it('should throw conflict when updating to duplicated userId', async () => {
     prisma.studentProfile.findUnique.mockResolvedValue(studentEntity);
     prisma.user.findUnique.mockResolvedValue({ id: 'user_2' });
-    prisma.studentProfile.update.mockRejectedValue(createKnownRequestError('P2002'));
+    prisma.studentProfile.update.mockRejectedValue(
+      createKnownRequestError('P2002'),
+    );
 
     await expect(
       service.update('student_1', {
@@ -167,7 +170,9 @@ describe('StudentsService', () => {
 
   it('should throw bad request when deleting related student', async () => {
     prisma.studentProfile.findUnique.mockResolvedValue(studentEntity);
-    prisma.studentProfile.delete.mockRejectedValue(createKnownRequestError('P2003'));
+    prisma.studentProfile.delete.mockRejectedValue(
+      createKnownRequestError('P2003'),
+    );
 
     await expect(service.remove('student_1')).rejects.toBeInstanceOf(
       BadRequestException,

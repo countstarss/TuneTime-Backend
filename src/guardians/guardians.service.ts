@@ -7,7 +7,13 @@ import {
 import { GuardianProfile, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateGuardianDto } from './dto/create-guardian.dto';
-import { GuardianAddressSummaryDto, GuardianListResponseDto, GuardianResponseDto, GuardianStudentSummaryDto, DeleteGuardianResponseDto } from './dto/guardian-response.dto';
+import {
+  GuardianAddressSummaryDto,
+  GuardianListResponseDto,
+  GuardianResponseDto,
+  GuardianStudentSummaryDto,
+  DeleteGuardianResponseDto,
+} from './dto/guardian-response.dto';
 import { ListGuardiansQueryDto } from './dto/list-guardians-query.dto';
 import { SetGuardianDefaultAddressDto } from './dto/set-default-address.dto';
 import { UpdateGuardianDto } from './dto/update-guardian.dto';
@@ -73,7 +79,10 @@ export class GuardiansService {
     }
   }
 
-  private async validateDefaultAddress(userId: string, addressId?: string | null) {
+  private async validateDefaultAddress(
+    userId: string,
+    addressId?: string | null,
+  ) {
     if (!addressId) {
       return null;
     }
@@ -167,7 +176,9 @@ export class GuardiansService {
     }
   }
 
-  async findAll(query: ListGuardiansQueryDto): Promise<GuardianListResponseDto> {
+  async findAll(
+    query: ListGuardiansQueryDto,
+  ): Promise<GuardianListResponseDto> {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 20;
     const skip = (page - 1) * pageSize;
@@ -195,7 +206,7 @@ export class GuardiansService {
         : {}),
     };
 
-    const [items, total] = await this.prisma.$transaction([
+    const [items, total] = await Promise.all([
       this.prisma.guardianProfile.findMany({
         where,
         include: {
@@ -255,7 +266,10 @@ export class GuardiansService {
     return this.toResponse(guardian);
   }
 
-  async update(id: string, dto: UpdateGuardianDto): Promise<GuardianResponseDto> {
+  async update(
+    id: string,
+    dto: UpdateGuardianDto,
+  ): Promise<GuardianResponseDto> {
     const current = await this.findGuardianOrThrow(id);
     const nextUserId = dto.userId?.trim() || current.userId;
 
@@ -264,7 +278,10 @@ export class GuardiansService {
     }
 
     if (dto.defaultServiceAddressId !== undefined) {
-      await this.validateDefaultAddress(nextUserId, dto.defaultServiceAddressId);
+      await this.validateDefaultAddress(
+        nextUserId,
+        dto.defaultServiceAddressId,
+      );
     }
 
     try {
@@ -273,12 +290,17 @@ export class GuardiansService {
         data: {
           ...(dto.userId ? { userId: nextUserId } : {}),
           ...(dto.displayName ? { displayName: dto.displayName.trim() } : {}),
-          ...(dto.phone !== undefined ? { phone: dto.phone?.trim() || null } : {}),
+          ...(dto.phone !== undefined
+            ? { phone: dto.phone?.trim() || null }
+            : {}),
           ...(dto.emergencyContactName !== undefined
             ? { emergencyContactName: dto.emergencyContactName?.trim() || null }
             : {}),
           ...(dto.emergencyContactPhone !== undefined
-            ? { emergencyContactPhone: dto.emergencyContactPhone?.trim() || null }
+            ? {
+                emergencyContactPhone:
+                  dto.emergencyContactPhone?.trim() || null,
+              }
             : {}),
           ...(dto.defaultServiceAddressId !== undefined
             ? { defaultServiceAddressId: dto.defaultServiceAddressId || null }

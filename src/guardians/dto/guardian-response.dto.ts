@@ -4,7 +4,12 @@ export class GuardianAddressSummaryDto {
   @ApiProperty({ description: '地址 ID。', example: 'cmc123addr001' })
   id!: string;
 
-  @ApiProperty({ description: '地址标签。', example: '家里', nullable: true, required: false })
+  @ApiProperty({
+    description: '地址标签。',
+    example: '家里',
+    nullable: true,
+    required: false,
+  })
   label!: string | null;
 
   @ApiProperty({ description: '省份。', example: '天津市' })
@@ -93,15 +98,25 @@ export class GuardianResponseDto {
   })
   defaultServiceAddress!: GuardianAddressSummaryDto | null;
 
-  @ApiProperty({ description: '创建时间。', example: '2026-03-15T13:00:00.000Z' })
+  @ApiProperty({
+    description: '创建时间。',
+    example: '2026-03-15T13:00:00.000Z',
+  })
   createdAt!: Date;
 
-  @ApiProperty({ description: '更新时间。', example: '2026-03-15T13:10:00.000Z' })
+  @ApiProperty({
+    description: '更新时间。',
+    example: '2026-03-15T13:10:00.000Z',
+  })
   updatedAt!: Date;
 }
 
 export class GuardianListResponseDto {
-  @ApiProperty({ description: '家长列表。', type: GuardianResponseDto, isArray: true })
+  @ApiProperty({
+    description: '家长列表。',
+    type: GuardianResponseDto,
+    isArray: true,
+  })
   items!: GuardianResponseDto[];
 
   @ApiProperty({ description: '当前页码。', example: 1 })

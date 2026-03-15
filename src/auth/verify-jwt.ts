@@ -1,11 +1,21 @@
-import { createRemoteJWKSet, jwtVerify, JWTPayload } from 'jose';
+import type { JWTPayload } from 'jose';
 
 type VerifyOptions = {
   issuer?: string;
   audience?: string;
 };
 
-let cachedJwks: ReturnType<typeof createRemoteJWKSet> | undefined = undefined;
+type JoseModule = typeof import('jose');
+let joseModulePromise: Promise<JoseModule> | null = null;
+let cachedJwks: unknown = undefined;
+
+async function loadJose() {
+  if (!joseModulePromise) {
+    joseModulePromise = import('jose');
+  }
+
+  return joseModulePromise;
+}
 
 function getSecretKey() {
   const jwtSecret = process.env.AUTH_JWT_SECRET;
@@ -15,18 +25,19 @@ function getSecretKey() {
   return new TextEncoder().encode(jwtSecret);
 }
 
-function getJwksKeyset(jwksUrl: string) {
+async function getJwksKeyset(jwksUrl: string) {
   if (!cachedJwks) {
+    const { createRemoteJWKSet } = await loadJose();
     cachedJwks = createRemoteJWKSet(new URL(jwksUrl));
   }
   return cachedJwks;
 }
 
-function getVerifierFromEnv() {
+async function getVerifierFromEnv() {
   const jwksUrl = process.env.AUTH_JWKS_URL;
 
   if (jwksUrl) {
-    return { type: 'jwks' as const, key: getJwksKeyset(jwksUrl) };
+    return { type: 'jwks' as const, key: await getJwksKeyset(jwksUrl) };
   }
 
   return { type: 'secret' as const, key: getSecretKey() };
@@ -43,12 +54,14 @@ function getVerifyOptions(): VerifyOptions {
 
 export async function verifyJwt(token: string): Promise<JWTPayload | null> {
   try {
-    const verifier = getVerifierFromEnv();
+    const { jwtVerify } = await loadJose();
+    const verifier = await getVerifierFromEnv();
     const verifyOptions = getVerifyOptions();
-    const { payload } =
-      verifier.type === 'jwks'
-        ? await jwtVerify(token, verifier.key, verifyOptions)
-        : await jwtVerify(token, verifier.key, verifyOptions);
+    const { payload } = await jwtVerify(
+      token,
+      verifier.key as Parameters<typeof jwtVerify>[1],
+      verifyOptions,
+    );
     return payload;
   } catch (err) {
     console.error('JWT verification failed:', err);

@@ -4,7 +4,10 @@ export class BookingTeacherSummaryDto {
   @ApiProperty({ description: '老师档案 ID。', example: 'cmc123teacher001' })
   id!: string;
 
-  @ApiProperty({ description: '老师用户 ID。', example: 'cmc123user-teacher001' })
+  @ApiProperty({
+    description: '老师用户 ID。',
+    example: 'cmc123user-teacher001',
+  })
   userId!: string;
 
   @ApiProperty({ description: '老师展示名。', example: '李老师' })
@@ -18,7 +21,12 @@ export class BookingStudentSummaryDto {
   @ApiProperty({ description: '学生档案 ID。', example: 'cmc123student001' })
   id!: string;
 
-  @ApiProperty({ description: '关联用户 ID。', example: 'cmc123user-student001', nullable: true, required: false })
+  @ApiProperty({
+    description: '关联用户 ID。',
+    example: 'cmc123user-student001',
+    nullable: true,
+    required: false,
+  })
   userId!: string | null;
 
   @ApiProperty({ description: '学生昵称。', example: '小宇' })
@@ -29,16 +37,36 @@ export class BookingStudentSummaryDto {
 }
 
 export class BookingGuardianSummaryDto {
-  @ApiProperty({ description: '家长档案 ID。', example: 'cmc123guardian001', nullable: true, required: false })
+  @ApiProperty({
+    description: '家长档案 ID。',
+    example: 'cmc123guardian001',
+    nullable: true,
+    required: false,
+  })
   id!: string | null;
 
-  @ApiProperty({ description: '家长用户 ID。', example: 'cmc123user-guardian001', nullable: true, required: false })
+  @ApiProperty({
+    description: '家长用户 ID。',
+    example: 'cmc123user-guardian001',
+    nullable: true,
+    required: false,
+  })
   userId!: string | null;
 
-  @ApiProperty({ description: '家长展示名。', example: '王女士', nullable: true, required: false })
+  @ApiProperty({
+    description: '家长展示名。',
+    example: '王女士',
+    nullable: true,
+    required: false,
+  })
   displayName!: string | null;
 
-  @ApiProperty({ description: '联系电话。', example: '13800138000', nullable: true, required: false })
+  @ApiProperty({
+    description: '联系电话。',
+    example: '13800138000',
+    nullable: true,
+    required: false,
+  })
   phone!: string | null;
 }
 
@@ -57,10 +85,18 @@ export class BookingAddressSummaryDto {
   @ApiProperty({ description: '地址 ID。', example: 'cmc123addr001' })
   id!: string;
 
-  @ApiProperty({ description: '地址所属用户 ID。', example: 'cmc123user-guardian001' })
+  @ApiProperty({
+    description: '地址所属用户 ID。',
+    example: 'cmc123user-guardian001',
+  })
   userId!: string;
 
-  @ApiProperty({ description: '地址标签。', example: '家里', nullable: true, required: false })
+  @ApiProperty({
+    description: '地址标签。',
+    example: '家里',
+    nullable: true,
+    required: false,
+  })
   label!: string | null;
 
   @ApiProperty({ description: '联系人。', example: '王女士' })
@@ -84,7 +120,12 @@ export class BookingAddressSummaryDto {
   @ApiProperty({ description: '街道。', example: '黄河道 100 号' })
   street!: string;
 
-  @ApiProperty({ description: '楼栋补充信息。', example: '3 号楼 2 单元 501', nullable: true, required: false })
+  @ApiProperty({
+    description: '楼栋补充信息。',
+    example: '3 号楼 2 单元 501',
+    nullable: true,
+    required: false,
+  })
   building!: string | null;
 }
 
@@ -101,7 +142,12 @@ export class BookingResponseDto {
   @ApiProperty({ description: '学生档案 ID。', example: 'cmc123student001' })
   studentProfileId!: string;
 
-  @ApiProperty({ description: '家长档案 ID。', example: 'cmc123guardian001', nullable: true, required: false })
+  @ApiProperty({
+    description: '家长档案 ID。',
+    example: 'cmc123guardian001',
+    nullable: true,
+    required: false,
+  })
   guardianProfileId!: string | null;
 
   @ApiProperty({ description: '科目 ID。', example: 'cmc123subject001' })
@@ -110,10 +156,16 @@ export class BookingResponseDto {
   @ApiProperty({ description: '服务地址 ID。', example: 'cmc123addr001' })
   serviceAddressId!: string;
 
-  @ApiProperty({ description: '开始时间。', example: '2026-03-20T09:00:00.000Z' })
+  @ApiProperty({
+    description: '开始时间。',
+    example: '2026-03-20T09:00:00.000Z',
+  })
   startAt!: Date;
 
-  @ApiProperty({ description: '结束时间。', example: '2026-03-20T10:00:00.000Z' })
+  @ApiProperty({
+    description: '结束时间。',
+    example: '2026-03-20T10:00:00.000Z',
+  })
   endAt!: Date;
 
   @ApiProperty({ description: '时区。', example: 'Asia/Shanghai' })
@@ -122,22 +174,47 @@ export class BookingResponseDto {
   @ApiProperty({ description: '预约状态。', example: 'PENDING_ACCEPTANCE' })
   status!: string;
 
-  @ApiProperty({ description: '取消原因。', example: 'STUDENT_REQUEST', nullable: true, required: false })
+  @ApiProperty({
+    description: '取消原因。',
+    example: 'STUDENT_REQUEST',
+    nullable: true,
+    required: false,
+  })
   cancellationReason!: string | null;
 
-  @ApiProperty({ description: '取消时间。', example: '2026-03-18T10:30:00.000Z', nullable: true, required: false })
+  @ApiProperty({
+    description: '取消时间。',
+    example: '2026-03-18T10:30:00.000Z',
+    nullable: true,
+    required: false,
+  })
   cancelledAt!: Date | null;
 
-  @ApiProperty({ description: '取消操作用户 ID。', example: 'cmc123user001', nullable: true, required: false })
+  @ApiProperty({
+    description: '取消操作用户 ID。',
+    example: 'cmc123user001',
+    nullable: true,
+    required: false,
+  })
   cancelledByUserId!: string | null;
 
   @ApiProperty({ description: '是否试听单。', example: true })
   isTrial!: boolean;
 
-  @ApiProperty({ description: '老师接单时间。', example: '2026-03-18T09:00:00.000Z', nullable: true, required: false })
+  @ApiProperty({
+    description: '老师接单时间。',
+    example: '2026-03-18T09:00:00.000Z',
+    nullable: true,
+    required: false,
+  })
   teacherAcceptedAt!: Date | null;
 
-  @ApiProperty({ description: '家长确认时间。', example: '2026-03-18T12:00:00.000Z', nullable: true, required: false })
+  @ApiProperty({
+    description: '家长确认时间。',
+    example: '2026-03-18T12:00:00.000Z',
+    nullable: true,
+    required: false,
+  })
   guardianConfirmedAt!: Date | null;
 
   @ApiProperty({ description: '小时费。', example: 180 })
@@ -167,13 +244,28 @@ export class BookingResponseDto {
   @ApiProperty({ description: '支付状态。', example: 'UNPAID' })
   paymentStatus!: string;
 
-  @ApiProperty({ description: '支付截止时间。', example: '2026-03-19T12:00:00.000Z', nullable: true, required: false })
+  @ApiProperty({
+    description: '支付截止时间。',
+    example: '2026-03-19T12:00:00.000Z',
+    nullable: true,
+    required: false,
+  })
   paymentDueAt!: Date | null;
 
-  @ApiProperty({ description: '课前计划摘要。', example: '试听课重点了解孩子基础。', nullable: true, required: false })
+  @ApiProperty({
+    description: '课前计划摘要。',
+    example: '试听课重点了解孩子基础。',
+    nullable: true,
+    required: false,
+  })
   planSummary!: string | null;
 
-  @ApiProperty({ description: '备注。', example: '需要自备节拍器。', nullable: true, required: false })
+  @ApiProperty({
+    description: '备注。',
+    example: '需要自备节拍器。',
+    nullable: true,
+    required: false,
+  })
   notes!: string | null;
 
   @ApiProperty({ description: '老师摘要。', type: BookingTeacherSummaryDto })
@@ -191,15 +283,25 @@ export class BookingResponseDto {
   @ApiProperty({ description: '地址摘要。', type: BookingAddressSummaryDto })
   serviceAddress!: BookingAddressSummaryDto;
 
-  @ApiProperty({ description: '创建时间。', example: '2026-03-15T13:00:00.000Z' })
+  @ApiProperty({
+    description: '创建时间。',
+    example: '2026-03-15T13:00:00.000Z',
+  })
   createdAt!: Date;
 
-  @ApiProperty({ description: '更新时间。', example: '2026-03-15T13:10:00.000Z' })
+  @ApiProperty({
+    description: '更新时间。',
+    example: '2026-03-15T13:10:00.000Z',
+  })
   updatedAt!: Date;
 }
 
 export class BookingListResponseDto {
-  @ApiProperty({ description: '预约列表。', type: BookingResponseDto, isArray: true })
+  @ApiProperty({
+    description: '预约列表。',
+    type: BookingResponseDto,
+    isArray: true,
+  })
   items!: BookingResponseDto[];
 
   @ApiProperty({ description: '当前页码。', example: 1 })

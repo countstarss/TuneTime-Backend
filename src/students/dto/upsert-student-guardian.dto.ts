@@ -1,6 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { GuardianRelation } from '@prisma/client';
-import { IsBoolean, IsEnum, IsOptional, IsString, Length } from 'class-validator';
+import {
+  IsBoolean,
+  IsEnum,
+  IsOptional,
+  IsString,
+  Length,
+} from 'class-validator';
 
 export class UpsertStudentGuardianDto {
   @ApiProperty({

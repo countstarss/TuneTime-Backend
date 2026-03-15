@@ -40,7 +40,8 @@ export class BookingsController {
   @Post()
   @ApiOperation({
     summary: '创建预约',
-    description: '创建新的预约单，服务端会自动校验老师/学生关系、计算价格并生成预约单号。',
+    description:
+      '创建新的预约单，服务端会自动校验老师/学生关系、计算价格并生成预约单号。',
   })
   @ApiBody({ type: CreateBookingDto })
   @ApiResponse({
@@ -66,7 +67,9 @@ export class BookingsController {
     description: '查询成功。',
     type: BookingListResponseDto,
   })
-  findAll(@Query() query: ListBookingsQueryDto): Promise<BookingListResponseDto> {
+  findAll(
+    @Query() query: ListBookingsQueryDto,
+  ): Promise<BookingListResponseDto> {
     return this.bookingsService.findAll(query);
   }
 
@@ -159,7 +162,8 @@ export class BookingsController {
   @Patch(':id/payment')
   @ApiOperation({
     summary: '更新预约支付状态',
-    description: '支付成功后会自动将预约状态推进到已确认；退款完成后会同步改成已退款。',
+    description:
+      '支付成功后会自动将预约状态推进到已确认；退款完成后会同步改成已退款。',
   })
   @ApiParam({ name: 'id', description: '预约 ID。' })
   @ApiBody({ type: UpdateBookingPaymentDto })
@@ -202,7 +206,10 @@ export class BookingsController {
     description: '删除成功。',
     type: DeleteBookingResponseDto,
   })
-  @ApiResponse({ status: 400, description: '预约状态不允许删除，或存在关联数据无法删除。' })
+  @ApiResponse({
+    status: 400,
+    description: '预约状态不允许删除，或存在关联数据无法删除。',
+  })
   remove(@Param('id') id: string): Promise<DeleteBookingResponseDto> {
     return this.bookingsService.remove(id);
   }

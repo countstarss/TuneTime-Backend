@@ -3,9 +3,7 @@ import {
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
-import {
-  BookingStatus,
-} from '@prisma/client';
+import { BookingStatus } from '@prisma/client';
 import { createKnownRequestError } from '../test-utils/prisma-test.utils';
 import { TeacherReviewsService } from './teacher-reviews.service';
 
@@ -81,23 +79,24 @@ describe('TeacherReviewsService', () => {
       guardianProfileId: 'guardian_1',
       status: BookingStatus.COMPLETED,
     });
-    prisma.$transaction.mockImplementation(async (callback: (tx: typeof prisma) => Promise<unknown>) =>
-      callback({
-        teacherReview: {
-          create: jest.fn().mockResolvedValue(reviewEntity),
-          aggregate: jest.fn().mockResolvedValue({
-            _avg: {
-              rating: 5,
-              lessonQualityRating: 5,
-              teacherPerformanceRating: 4,
-            },
-            _count: { _all: 1 },
-          }),
-        },
-        teacherProfile: {
-          update: jest.fn().mockResolvedValue({ id: 'teacher_1' }),
-        },
-      } as never),
+    prisma.$transaction.mockImplementation(
+      async (callback: (tx: typeof prisma) => Promise<unknown>) =>
+        callback({
+          teacherReview: {
+            create: jest.fn().mockResolvedValue(reviewEntity),
+            aggregate: jest.fn().mockResolvedValue({
+              _avg: {
+                rating: 5,
+                lessonQualityRating: 5,
+                teacherPerformanceRating: 4,
+              },
+              _count: { _all: 1 },
+            }),
+          },
+          teacherProfile: {
+            update: jest.fn().mockResolvedValue({ id: 'teacher_1' }),
+          },
+        } as never),
     );
 
     const result = await service.create({
@@ -164,29 +163,30 @@ describe('TeacherReviewsService', () => {
 
   it('should update review and resync stats', async () => {
     prisma.teacherReview.findUnique.mockResolvedValue(reviewEntity);
-    prisma.$transaction.mockImplementation(async (callback: (tx: typeof prisma) => Promise<unknown>) =>
-      callback({
-        teacherReview: {
-          update: jest.fn().mockResolvedValue({
-            ...reviewEntity,
-            rating: 4,
-            comment: '老师沟通清晰',
-            tags: ['沟通好'],
-            aggregate: undefined,
-          }),
-          aggregate: jest.fn().mockResolvedValue({
-            _avg: {
-              rating: 4.5,
-              lessonQualityRating: 4.6,
-              teacherPerformanceRating: 4.4,
-            },
-            _count: { _all: 2 },
-          }),
-        },
-        teacherProfile: {
-          update: jest.fn().mockResolvedValue({ id: 'teacher_1' }),
-        },
-      } as never),
+    prisma.$transaction.mockImplementation(
+      async (callback: (tx: typeof prisma) => Promise<unknown>) =>
+        callback({
+          teacherReview: {
+            update: jest.fn().mockResolvedValue({
+              ...reviewEntity,
+              rating: 4,
+              comment: '老师沟通清晰',
+              tags: ['沟通好'],
+              aggregate: undefined,
+            }),
+            aggregate: jest.fn().mockResolvedValue({
+              _avg: {
+                rating: 4.5,
+                lessonQualityRating: 4.6,
+                teacherPerformanceRating: 4.4,
+              },
+              _count: { _all: 2 },
+            }),
+          },
+          teacherProfile: {
+            update: jest.fn().mockResolvedValue({ id: 'teacher_1' }),
+          },
+        } as never),
     );
 
     const result = await service.update('review_1', {
@@ -201,23 +201,24 @@ describe('TeacherReviewsService', () => {
 
   it('should delete review and resync stats', async () => {
     prisma.teacherReview.findUnique.mockResolvedValue(reviewEntity);
-    prisma.$transaction.mockImplementation(async (callback: (tx: typeof prisma) => Promise<unknown>) =>
-      callback({
-        teacherReview: {
-          delete: jest.fn().mockResolvedValue({ id: 'review_1' }),
-          aggregate: jest.fn().mockResolvedValue({
-            _avg: {
-              rating: 0,
-              lessonQualityRating: null,
-              teacherPerformanceRating: null,
-            },
-            _count: { _all: 0 },
-          }),
-        },
-        teacherProfile: {
-          update: jest.fn().mockResolvedValue({ id: 'teacher_1' }),
-        },
-      } as never),
+    prisma.$transaction.mockImplementation(
+      async (callback: (tx: typeof prisma) => Promise<unknown>) =>
+        callback({
+          teacherReview: {
+            delete: jest.fn().mockResolvedValue({ id: 'review_1' }),
+            aggregate: jest.fn().mockResolvedValue({
+              _avg: {
+                rating: 0,
+                lessonQualityRating: null,
+                teacherPerformanceRating: null,
+              },
+              _count: { _all: 0 },
+            }),
+          },
+          teacherProfile: {
+            update: jest.fn().mockResolvedValue({ id: 'teacher_1' }),
+          },
+        } as never),
     );
 
     const result = await service.remove('review_1');

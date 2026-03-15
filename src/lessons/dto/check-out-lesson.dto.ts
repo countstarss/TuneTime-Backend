@@ -1,6 +1,14 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsDateString, IsNumber, IsOptional, IsString, MaxLength, Min, Max } from 'class-validator';
+import {
+  IsDateString,
+  IsNumber,
+  IsOptional,
+  IsString,
+  MaxLength,
+  Min,
+  Max,
+} from 'class-validator';
 
 export class CheckOutLessonDto {
   @ApiPropertyOptional({
@@ -27,7 +35,10 @@ export class CheckOutLessonDto {
   @Max(180)
   checkOutLongitude?: number;
 
-  @ApiPropertyOptional({ description: '签退地址描述。', example: '天津市南开区黄河道 100 号' })
+  @ApiPropertyOptional({
+    description: '签退地址描述。',
+    example: '天津市南开区黄河道 100 号',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(255)

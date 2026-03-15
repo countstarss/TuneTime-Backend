@@ -1,9 +1,17 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsOptional, IsString, Length, Matches, MaxLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsOptional,
+  IsString,
+  Length,
+  Matches,
+  MaxLength,
+} from 'class-validator';
 
 export class CreateSubjectDto {
   @ApiProperty({
-    description: '科目编码，建议使用大写英文或下划线，后续可用于程序枚举和筛选。',
+    description:
+      '科目编码，建议使用大写英文或下划线，后续可用于程序枚举和筛选。',
     example: 'PIANO',
   })
   @IsString()

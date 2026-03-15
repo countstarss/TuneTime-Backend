@@ -96,7 +96,9 @@ describe('TeachersService', () => {
 
   it('should throw conflict when teacher user already exists', async () => {
     prisma.user.findUnique.mockResolvedValue({ id: 'user_teacher_1' });
-    prisma.teacherProfile.create.mockRejectedValue(createKnownRequestError('P2002'));
+    prisma.teacherProfile.create.mockRejectedValue(
+      createKnownRequestError('P2002'),
+    );
 
     await expect(
       service.create({
@@ -173,7 +175,9 @@ describe('TeachersService', () => {
 
   it('should throw bad request when deleting related teacher', async () => {
     prisma.teacherProfile.findUnique.mockResolvedValue(teacherEntity);
-    prisma.teacherProfile.delete.mockRejectedValue(createKnownRequestError('P2003'));
+    prisma.teacherProfile.delete.mockRejectedValue(
+      createKnownRequestError('P2003'),
+    );
 
     await expect(service.remove('teacher_1')).rejects.toBeInstanceOf(
       BadRequestException,

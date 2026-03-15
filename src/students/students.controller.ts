@@ -60,7 +60,9 @@ export class StudentsController {
     description: '查询成功，返回分页结果。',
     type: StudentListResponseDto,
   })
-  findAll(@Query() query: ListStudentsQueryDto): Promise<StudentListResponseDto> {
+  findAll(
+    @Query() query: ListStudentsQueryDto,
+  ): Promise<StudentListResponseDto> {
     return this.studentsService.findAll(query);
   }
 
@@ -117,7 +119,8 @@ export class StudentsController {
   @Patch(':id/guardians')
   @ApiOperation({
     summary: '新增或更新学生-家长绑定',
-    description: '适合后续设置页、关系管理页调用。若传 isPrimary=true，会将该学生其他绑定改为非主联系人。',
+    description:
+      '适合后续设置页、关系管理页调用。若传 isPrimary=true，会将该学生其他绑定改为非主联系人。',
   })
   @ApiParam({ name: 'id', description: '学生档案 ID。' })
   @ApiBody({ type: UpsertStudentGuardianDto })

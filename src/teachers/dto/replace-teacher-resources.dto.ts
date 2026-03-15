@@ -1,9 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  CredentialType,
-  DocumentReviewStatus,
-  Weekday,
-} from '@prisma/client';
+import { CredentialType, DocumentReviewStatus, Weekday } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsArray,
@@ -31,7 +27,12 @@ export class TeacherSubjectInputDto {
   @Min(0)
   hourlyRate!: number;
 
-  @ApiProperty({ description: '试听价。', example: 99, required: false, nullable: true })
+  @ApiProperty({
+    description: '试听价。',
+    example: 99,
+    required: false,
+    nullable: true,
+  })
   @IsOptional()
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
@@ -44,7 +45,11 @@ export class TeacherSubjectInputDto {
   @Min(0)
   experienceYears = 0;
 
-  @ApiProperty({ description: '是否启用该科目。', example: true, default: true })
+  @ApiProperty({
+    description: '是否启用该科目。',
+    example: true,
+    default: true,
+  })
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
@@ -98,7 +103,11 @@ export class ReplaceTeacherServiceAreasDto {
 }
 
 export class TeacherAvailabilityRuleInputDto {
-  @ApiProperty({ description: '星期。', enum: Weekday, example: Weekday.SATURDAY })
+  @ApiProperty({
+    description: '星期。',
+    enum: Weekday,
+    example: Weekday.SATURDAY,
+  })
   @IsEnum(Weekday)
   weekday!: Weekday;
 
@@ -114,7 +123,11 @@ export class TeacherAvailabilityRuleInputDto {
   @Min(1)
   endMinute!: number;
 
-  @ApiProperty({ description: '单个时间段时长，单位分钟。', example: 60, default: 60 })
+  @ApiProperty({
+    description: '单个时间段时长，单位分钟。',
+    example: 60,
+    default: 60,
+  })
   @Type(() => Number)
   @IsInt()
   @Min(1)
@@ -165,7 +178,11 @@ export class ReplaceTeacherAvailabilityRulesDto {
 }
 
 export class TeacherCredentialInputDto {
-  @ApiProperty({ description: '资质类型。', enum: CredentialType, example: CredentialType.TEACHING_LICENSE })
+  @ApiProperty({
+    description: '资质类型。',
+    enum: CredentialType,
+    example: CredentialType.TEACHING_LICENSE,
+  })
   @IsEnum(CredentialType)
   credentialType!: CredentialType;
 
@@ -174,23 +191,41 @@ export class TeacherCredentialInputDto {
   @MaxLength(128)
   name!: string;
 
-  @ApiProperty({ description: '文件 URL。', example: 'https://example.com/license.pdf' })
+  @ApiProperty({
+    description: '文件 URL。',
+    example: 'https://example.com/license.pdf',
+  })
   @IsString()
   @MaxLength(1000)
   fileUrl!: string;
 
-  @ApiProperty({ description: '签发机构。', example: '中国音乐学院', required: false, nullable: true })
+  @ApiProperty({
+    description: '签发机构。',
+    example: '中国音乐学院',
+    required: false,
+    nullable: true,
+  })
   @IsOptional()
   @IsString()
   @MaxLength(128)
   issuedBy?: string | null;
 
-  @ApiProperty({ description: '签发日期。', example: '2024-01-01', required: false, nullable: true })
+  @ApiProperty({
+    description: '签发日期。',
+    example: '2024-01-01',
+    required: false,
+    nullable: true,
+  })
   @IsOptional()
   @IsString()
   issuedAt?: string | null;
 
-  @ApiProperty({ description: '过期日期。', example: '2030-01-01', required: false, nullable: true })
+  @ApiProperty({
+    description: '过期日期。',
+    example: '2030-01-01',
+    required: false,
+    nullable: true,
+  })
   @IsOptional()
   @IsString()
   expiresAt?: string | null;
@@ -205,7 +240,12 @@ export class TeacherCredentialInputDto {
   @IsEnum(DocumentReviewStatus)
   reviewStatus?: DocumentReviewStatus;
 
-  @ApiProperty({ description: '审核备注。', example: '待补充清晰扫描件', required: false, nullable: true })
+  @ApiProperty({
+    description: '审核备注。',
+    example: '待补充清晰扫描件',
+    required: false,
+    nullable: true,
+  })
   @IsOptional()
   @IsString()
   @MaxLength(500)

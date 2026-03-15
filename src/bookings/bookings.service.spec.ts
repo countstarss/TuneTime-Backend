@@ -1,7 +1,4 @@
-import {
-  BadRequestException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import {
   BookingCancellationReason,
   BookingStatus,
@@ -128,9 +125,15 @@ describe('BookingsService', () => {
   });
 
   it('should create booking and calculate pricing from trial rate', async () => {
-    prisma.teacherProfile.findUnique.mockResolvedValue(bookingEntity.teacherProfile);
-    prisma.studentProfile.findUnique.mockResolvedValue(bookingEntity.studentProfile);
-    prisma.guardianProfile.findUnique.mockResolvedValue(bookingEntity.guardianProfile);
+    prisma.teacherProfile.findUnique.mockResolvedValue(
+      bookingEntity.teacherProfile,
+    );
+    prisma.studentProfile.findUnique.mockResolvedValue(
+      bookingEntity.studentProfile,
+    );
+    prisma.guardianProfile.findUnique.mockResolvedValue(
+      bookingEntity.guardianProfile,
+    );
     prisma.subject.findUnique.mockResolvedValue(bookingEntity.subject);
     prisma.address.findUnique.mockResolvedValue(bookingEntity.serviceAddress);
     prisma.teacherSubject.findFirst.mockResolvedValue({
@@ -138,7 +141,9 @@ describe('BookingsService', () => {
       hourlyRate: { toString: () => '180' },
       trialRate: { toString: () => '99' },
     });
-    prisma.studentGuardian.findFirst.mockResolvedValue({ id: 'student_guardian_1' });
+    prisma.studentGuardian.findFirst.mockResolvedValue({
+      id: 'student_guardian_1',
+    });
     prisma.booking.findFirst.mockResolvedValue(null);
     prisma.booking.create.mockResolvedValue(bookingEntity);
 

@@ -1,4 +1,8 @@
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { hashPassword, verifyPassword } from './password.util';
 import { signAccessToken } from './token.util';
@@ -128,15 +132,12 @@ export class AuthService {
     const prisma = this.prisma as unknown as {
       $transaction: <T>(fn: (tx: unknown) => Promise<T>) => Promise<T>;
       user: {
-        findUnique: (args: unknown) => Promise<
-          | {
-              id: string;
-              name: string | null;
-              email: string | null;
-              passwordCredential?: { id: string } | null;
-            }
-          | null
-        >;
+        findUnique: (args: unknown) => Promise<{
+          id: string;
+          name: string | null;
+          email: string | null;
+          passwordCredential?: { id: string } | null;
+        } | null>;
       };
     };
 
@@ -234,16 +235,13 @@ export class AuthService {
 
     const prisma = this.prisma as unknown as {
       user: {
-        findUnique: (args: unknown) => Promise<
-          | {
-              id: string;
-              name: string | null;
-              email: string | null;
-              status: string;
-              passwordCredential: { passwordHash: string } | null;
-            }
-          | null
-        >;
+        findUnique: (args: unknown) => Promise<{
+          id: string;
+          name: string | null;
+          email: string | null;
+          status: string;
+          passwordCredential: { passwordHash: string } | null;
+        } | null>;
       };
     };
 

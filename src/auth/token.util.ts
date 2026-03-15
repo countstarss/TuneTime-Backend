@@ -1,4 +1,15 @@
-import { JWTPayload, SignJWT } from 'jose';
+import type { JWTPayload } from 'jose';
+
+type JoseModule = typeof import('jose');
+let joseModulePromise: Promise<JoseModule> | null = null;
+
+async function loadJose() {
+  if (!joseModulePromise) {
+    joseModulePromise = import('jose');
+  }
+
+  return joseModulePromise;
+}
 
 export type AppJwtPayload = JWTPayload & {
   sub: string;
@@ -16,6 +27,8 @@ export async function signAccessToken(payload: AppJwtPayload): Promise<string> {
   const issuer = process.env.AUTH_JWT_ISSUER || undefined;
   const audience = process.env.AUTH_JWT_AUDIENCE || undefined;
   const expiresIn = process.env.AUTH_JWT_EXPIRES_IN || '7d';
+
+  const { SignJWT } = await loadJose();
 
   let tokenBuilder = new SignJWT(payload)
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })

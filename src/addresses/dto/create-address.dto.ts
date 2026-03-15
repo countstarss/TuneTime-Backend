@@ -62,7 +62,10 @@ export class CreateAddressDto {
   @MaxLength(255)
   street!: string;
 
-  @ApiPropertyOptional({ description: '楼栋、门牌等补充信息。', example: '3 号楼 2 单元 501' })
+  @ApiPropertyOptional({
+    description: '楼栋、门牌等补充信息。',
+    example: '3 号楼 2 单元 501',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(255)

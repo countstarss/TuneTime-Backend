@@ -1,7 +1,15 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { GradeLevel } from '@prisma/client';
 import { Type } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import {
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 export class ListStudentsQueryDto {
   @ApiPropertyOptional({

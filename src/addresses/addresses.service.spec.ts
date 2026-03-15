@@ -1,7 +1,4 @@
-import {
-  BadRequestException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { AddressesService } from './addresses.service';
 import { createKnownRequestError } from '../test-utils/prisma-test.utils';
 
@@ -51,13 +48,14 @@ describe('AddressesService', () => {
 
   it('should create default address and clear previous defaults', async () => {
     prisma.user.findUnique.mockResolvedValue({ id: 'user_1' });
-    prisma.$transaction.mockImplementation(async (callback: (tx: typeof prisma) => Promise<unknown>) =>
-      callback({
-        address: {
-          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
-          create: jest.fn().mockResolvedValue(addressEntity),
-        },
-      } as never),
+    prisma.$transaction.mockImplementation(
+      async (callback: (tx: typeof prisma) => Promise<unknown>) =>
+        callback({
+          address: {
+            updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+            create: jest.fn().mockResolvedValue(addressEntity),
+          },
+        } as never),
     );
 
     const result = await service.create({

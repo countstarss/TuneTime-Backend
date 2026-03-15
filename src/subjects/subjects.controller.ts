@@ -60,7 +60,9 @@ export class SubjectsController {
     description: '查询成功，返回分页结果。',
     type: SubjectListResponseDto,
   })
-  findAll(@Query() query: ListSubjectsQueryDto): Promise<SubjectListResponseDto> {
+  findAll(
+    @Query() query: ListSubjectsQueryDto,
+  ): Promise<SubjectListResponseDto> {
     return this.subjectsService.findAll(query);
   }
 

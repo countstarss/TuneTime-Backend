@@ -279,7 +279,7 @@ export class TeachersService {
             },
           }
         : {}),
-      ...((query.city || query.district)
+      ...(query.city || query.district
         ? {
             serviceAreas: {
               some: {
@@ -309,7 +309,7 @@ export class TeachersService {
         : {}),
     };
 
-    const [items, total] = await this.prisma.$transaction([
+    const [items, total] = await Promise.all([
       this.prisma.teacherProfile.findMany({
         where,
         include: this.getTeacherInclude(),
@@ -381,7 +381,9 @@ export class TeachersService {
           ...(dto.serviceRadiusKm !== undefined
             ? { serviceRadiusKm: dto.serviceRadiusKm }
             : {}),
-          ...(dto.acceptTrial !== undefined ? { acceptTrial: dto.acceptTrial } : {}),
+          ...(dto.acceptTrial !== undefined
+            ? { acceptTrial: dto.acceptTrial }
+            : {}),
           ...(dto.maxTravelMinutes !== undefined
             ? { maxTravelMinutes: dto.maxTravelMinutes }
             : {}),
@@ -529,7 +531,9 @@ export class TeachersService {
             slotDurationMinutes: item.slotDurationMinutes ?? 60,
             bufferMinutes: item.bufferMinutes ?? 0,
             isActive: item.isActive ?? true,
-            effectiveFrom: item.effectiveFrom ? new Date(item.effectiveFrom) : null,
+            effectiveFrom: item.effectiveFrom
+              ? new Date(item.effectiveFrom)
+              : null,
             effectiveTo: item.effectiveTo ? new Date(item.effectiveTo) : null,
           })),
         });

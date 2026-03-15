@@ -46,7 +46,9 @@ export class TeacherReviewsController {
     type: TeacherReviewResponseDto,
   })
   @ApiResponse({ status: 409, description: '该预约已经存在老师评价。' })
-  create(@Body() dto: CreateTeacherReviewDto): Promise<TeacherReviewResponseDto> {
+  create(
+    @Body() dto: CreateTeacherReviewDto,
+  ): Promise<TeacherReviewResponseDto> {
     return this.teacherReviewsService.create(dto);
   }
 

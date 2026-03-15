@@ -10,7 +10,11 @@ import { CreateSubjectDto } from './dto/create-subject.dto';
 import { ListSubjectsQueryDto } from './dto/list-subjects-query.dto';
 import { UpdateSubjectStatusDto } from './dto/update-subject-status.dto';
 import { UpdateSubjectDto } from './dto/update-subject.dto';
-import { DeleteSubjectResponseDto, SubjectListResponseDto, SubjectResponseDto } from './dto/subject-response.dto';
+import {
+  DeleteSubjectResponseDto,
+  SubjectListResponseDto,
+  SubjectResponseDto,
+} from './dto/subject-response.dto';
 
 @Injectable()
 export class SubjectsService {
@@ -28,7 +32,9 @@ export class SubjectsService {
     };
   }
 
-  private buildKeywordWhere(keyword?: string): Prisma.SubjectWhereInput | undefined {
+  private buildKeywordWhere(
+    keyword?: string,
+  ): Prisma.SubjectWhereInput | undefined {
     const value = keyword?.trim();
     if (!value) {
       return undefined;
@@ -37,8 +43,15 @@ export class SubjectsService {
     return {
       OR: [
         { name: { contains: value, mode: Prisma.QueryMode.insensitive } },
-        { code: { contains: value.toUpperCase(), mode: Prisma.QueryMode.insensitive } },
-        { description: { contains: value, mode: Prisma.QueryMode.insensitive } },
+        {
+          code: {
+            contains: value.toUpperCase(),
+            mode: Prisma.QueryMode.insensitive,
+          },
+        },
+        {
+          description: { contains: value, mode: Prisma.QueryMode.insensitive },
+        },
       ],
     };
   }
@@ -81,11 +94,13 @@ export class SubjectsService {
     const skip = (page - 1) * pageSize;
 
     const where: Prisma.SubjectWhereInput = {
-      ...(typeof query.isActive === 'boolean' ? { isActive: query.isActive } : {}),
+      ...(typeof query.isActive === 'boolean'
+        ? { isActive: query.isActive }
+        : {}),
       ...(this.buildKeywordWhere(query.keyword) ?? {}),
     };
 
-    const [items, total] = await this.prisma.$transaction([
+    const [items, total] = await Promise.all([
       this.prisma.subject.findMany({
         where,
         orderBy: [{ isActive: 'desc' }, { name: 'asc' }],

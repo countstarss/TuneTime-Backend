@@ -67,7 +67,9 @@ export class TeachersController {
     description: '查询成功。',
     type: TeacherListResponseDto,
   })
-  findAll(@Query() query: ListTeachersQueryDto): Promise<TeacherListResponseDto> {
+  findAll(
+    @Query() query: ListTeachersQueryDto,
+  ): Promise<TeacherListResponseDto> {
     return this.teachersService.findAll(query);
   }
 

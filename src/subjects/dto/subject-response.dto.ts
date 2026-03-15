@@ -21,10 +21,16 @@ export class SubjectResponseDto {
   @ApiProperty({ description: '是否启用。', example: true })
   isActive!: boolean;
 
-  @ApiProperty({ description: '创建时间。', example: '2026-03-15T13:00:00.000Z' })
+  @ApiProperty({
+    description: '创建时间。',
+    example: '2026-03-15T13:00:00.000Z',
+  })
   createdAt!: Date;
 
-  @ApiProperty({ description: '更新时间。', example: '2026-03-15T13:10:00.000Z' })
+  @ApiProperty({
+    description: '更新时间。',
+    example: '2026-03-15T13:10:00.000Z',
+  })
   updatedAt!: Date;
 }
 

@@ -3,10 +3,7 @@ import {
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
-import {
-  BookingStatus,
-  LessonAttendanceStatus,
-} from '@prisma/client';
+import { BookingStatus, LessonAttendanceStatus } from '@prisma/client';
 import { createKnownRequestError } from '../test-utils/prisma-test.utils';
 import { LessonsService } from './lessons.service';
 
@@ -101,9 +98,9 @@ describe('LessonsService', () => {
     });
     prisma.lesson.create.mockRejectedValue(createKnownRequestError('P2002'));
 
-    await expect(service.create({ bookingId: 'booking_1' })).rejects.toBeInstanceOf(
-      ConflictException,
-    );
+    await expect(
+      service.create({ bookingId: 'booking_1' }),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('should return paginated lesson list', async () => {
@@ -121,20 +118,21 @@ describe('LessonsService', () => {
 
   it('should check in lesson and move booking to in progress', async () => {
     prisma.lesson.findUnique.mockResolvedValue(lessonEntity);
-    prisma.$transaction.mockImplementation(async (callback: (tx: typeof prisma) => Promise<unknown>) =>
-      callback({
-        lesson: {
-          update: jest.fn().mockResolvedValue({
-            ...lessonEntity,
-            attendanceStatus: LessonAttendanceStatus.ONGOING,
-            checkInAt: new Date('2026-03-20T08:58:00.000Z'),
-            startedAt: new Date('2026-03-20T09:00:00.000Z'),
-          }),
-        },
-        booking: {
-          update: jest.fn().mockResolvedValue({ id: 'booking_1' }),
-        },
-      } as never),
+    prisma.$transaction.mockImplementation(
+      async (callback: (tx: typeof prisma) => Promise<unknown>) =>
+        callback({
+          lesson: {
+            update: jest.fn().mockResolvedValue({
+              ...lessonEntity,
+              attendanceStatus: LessonAttendanceStatus.ONGOING,
+              checkInAt: new Date('2026-03-20T08:58:00.000Z'),
+              startedAt: new Date('2026-03-20T09:00:00.000Z'),
+            }),
+          },
+          booking: {
+            update: jest.fn().mockResolvedValue({ id: 'booking_1' }),
+          },
+        } as never),
     );
 
     const result = await service.checkIn('lesson_1', {
@@ -152,22 +150,23 @@ describe('LessonsService', () => {
       checkInAt: new Date('2026-03-20T08:58:00.000Z'),
       startedAt: new Date('2026-03-20T09:00:00.000Z'),
     });
-    prisma.$transaction.mockImplementation(async (callback: (tx: typeof prisma) => Promise<unknown>) =>
-      callback({
-        lesson: {
-          update: jest.fn().mockResolvedValue({
-            ...lessonEntity,
-            attendanceStatus: LessonAttendanceStatus.COMPLETED,
-            checkInAt: new Date('2026-03-20T08:58:00.000Z'),
-            startedAt: new Date('2026-03-20T09:00:00.000Z'),
-            checkOutAt: new Date('2026-03-20T10:05:00.000Z'),
-            endedAt: new Date('2026-03-20T10:00:00.000Z'),
-          }),
-        },
-        booking: {
-          update: jest.fn().mockResolvedValue({ id: 'booking_1' }),
-        },
-      } as never),
+    prisma.$transaction.mockImplementation(
+      async (callback: (tx: typeof prisma) => Promise<unknown>) =>
+        callback({
+          lesson: {
+            update: jest.fn().mockResolvedValue({
+              ...lessonEntity,
+              attendanceStatus: LessonAttendanceStatus.COMPLETED,
+              checkInAt: new Date('2026-03-20T08:58:00.000Z'),
+              startedAt: new Date('2026-03-20T09:00:00.000Z'),
+              checkOutAt: new Date('2026-03-20T10:05:00.000Z'),
+              endedAt: new Date('2026-03-20T10:00:00.000Z'),
+            }),
+          },
+          booking: {
+            update: jest.fn().mockResolvedValue({ id: 'booking_1' }),
+          },
+        } as never),
     );
 
     const result = await service.checkOut('lesson_1', {

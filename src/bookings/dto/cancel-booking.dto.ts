@@ -1,6 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { BookingCancellationReason } from '@prisma/client';
-import { IsDateString, IsEnum, IsOptional, IsString, Length } from 'class-validator';
+import {
+  IsDateString,
+  IsEnum,
+  IsOptional,
+  IsString,
+  Length,
+} from 'class-validator';
 
 export class CancelBookingDto {
   @ApiProperty({

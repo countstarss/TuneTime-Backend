@@ -106,7 +106,9 @@ export class AddressesService {
       ...(query.userId ? { userId: query.userId.trim() } : {}),
       ...(query.city ? { city: query.city.trim() } : {}),
       ...(query.district ? { district: query.district.trim() } : {}),
-      ...(typeof query.isDefault === 'boolean' ? { isDefault: query.isDefault } : {}),
+      ...(typeof query.isDefault === 'boolean'
+        ? { isDefault: query.isDefault }
+        : {}),
       ...(keyword
         ? {
             OR: [
@@ -205,10 +207,16 @@ export class AddressesService {
         where: { id },
         data: {
           ...(dto.userId ? { userId: nextUserId } : {}),
-          ...(dto.label !== undefined ? { label: dto.label?.trim() || null } : {}),
+          ...(dto.label !== undefined
+            ? { label: dto.label?.trim() || null }
+            : {}),
           ...(dto.contactName ? { contactName: dto.contactName.trim() } : {}),
-          ...(dto.contactPhone ? { contactPhone: dto.contactPhone.trim() } : {}),
-          ...(dto.country !== undefined ? { country: dto.country?.trim() || 'CN' } : {}),
+          ...(dto.contactPhone
+            ? { contactPhone: dto.contactPhone.trim() }
+            : {}),
+          ...(dto.country !== undefined
+            ? { country: dto.country?.trim() || 'CN' }
+            : {}),
           ...(dto.province ? { province: dto.province.trim() } : {}),
           ...(dto.city ? { city: dto.city.trim() } : {}),
           ...(dto.district ? { district: dto.district.trim() } : {}),
@@ -226,7 +234,10 @@ export class AddressesService {
     return this.toResponse(address);
   }
 
-  async setDefault(id: string, dto: SetDefaultAddressDto): Promise<AddressResponseDto> {
+  async setDefault(
+    id: string,
+    dto: SetDefaultAddressDto,
+  ): Promise<AddressResponseDto> {
     if (!dto.isDefault) {
       throw new BadRequestException('默认地址接口仅支持将当前地址设为默认');
     }
@@ -262,7 +273,9 @@ export class AddressesService {
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2003'
       ) {
-        throw new BadRequestException('地址已被家长档案或订单引用，无法直接删除');
+        throw new BadRequestException(
+          '地址已被家长档案或订单引用，无法直接删除',
+        );
       }
 
       throw error;

@@ -6,8 +6,16 @@ import {
 } from '@nestjs/common';
 import { Prisma, StudentProfile, StudentGuardian } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateStudentDto, CreateStudentGuardianBindingDto } from './dto/create-student.dto';
-import { DeleteStudentResponseDto, StudentGuardianResponseDto, StudentListResponseDto, StudentResponseDto } from './dto/student-response.dto';
+import {
+  CreateStudentDto,
+  CreateStudentGuardianBindingDto,
+} from './dto/create-student.dto';
+import {
+  DeleteStudentResponseDto,
+  StudentGuardianResponseDto,
+  StudentListResponseDto,
+  StudentResponseDto,
+} from './dto/student-response.dto';
 import { ListStudentsQueryDto } from './dto/list-students-query.dto';
 import { UpdateStudentDto } from './dto/update-student.dto';
 import { UpsertStudentGuardianDto } from './dto/upsert-student-guardian.dto';
@@ -208,7 +216,9 @@ export class StudentsService {
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
-        throw new ConflictException('学生档案创建失败，userId 或家长绑定可能已重复');
+        throw new ConflictException(
+          '学生档案创建失败，userId 或家长绑定可能已重复',
+        );
       }
 
       throw error;
@@ -257,7 +267,7 @@ export class StudentsService {
         : {}),
     };
 
-    const [items, total] = await this.prisma.$transaction([
+    const [items, total] = await Promise.all([
       this.prisma.studentProfile.findMany({
         where,
         include: this.getStudentInclude(),
@@ -308,7 +318,9 @@ export class StudentsService {
           ...(dto.displayName ? { displayName: dto.displayName.trim() } : {}),
           ...(dto.gradeLevel ? { gradeLevel: dto.gradeLevel } : {}),
           ...(dto.dateOfBirth !== undefined
-            ? { dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null }
+            ? {
+                dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
+              }
             : {}),
           ...(dto.schoolName !== undefined
             ? { schoolName: dto.schoolName?.trim() || null }

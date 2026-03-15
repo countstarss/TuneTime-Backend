@@ -23,7 +23,9 @@ async function bootstrap() {
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('TuneTime Backend API')
-    .setDescription('TuneTime 后端接口文档，包含鉴权、基础资料、预约与履约相关接口。')
+    .setDescription(
+      'TuneTime 后端接口文档，包含鉴权、基础资料、预约与履约相关接口。',
+    )
     .setVersion('1.0.0')
     .addBearerAuth(
       {
@@ -37,12 +39,17 @@ async function bootstrap() {
     .build();
 
   const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup(process.env.SWAGGER_PATH || 'docs', app, swaggerDocument, {
-    swaggerOptions: {
-      persistAuthorization: true,
-      docExpansion: 'none',
+  SwaggerModule.setup(
+    process.env.SWAGGER_PATH || 'docs',
+    app,
+    swaggerDocument,
+    {
+      swaggerOptions: {
+        persistAuthorization: true,
+        docExpansion: 'none',
+      },
     },
-  });
+  );
 
   await app.listen(5678);
 }

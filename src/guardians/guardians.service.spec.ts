@@ -99,7 +99,9 @@ describe('GuardiansService', () => {
     });
 
     await expect(
-      service.setDefaultAddress('guardian_1', { defaultServiceAddressId: 'addr_1' }),
+      service.setDefaultAddress('guardian_1', {
+        defaultServiceAddressId: 'addr_1',
+      }),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
@@ -131,7 +133,9 @@ describe('GuardiansService', () => {
 
   it('should throw bad request when deleting guardian with relations', async () => {
     prisma.guardianProfile.findUnique.mockResolvedValue(guardianEntity);
-    prisma.guardianProfile.delete.mockRejectedValue(createKnownRequestError('P2003'));
+    prisma.guardianProfile.delete.mockRejectedValue(
+      createKnownRequestError('P2003'),
+    );
 
     await expect(service.remove('guardian_1')).rejects.toBeInstanceOf(
       BadRequestException,

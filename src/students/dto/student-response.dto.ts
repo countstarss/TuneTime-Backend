@@ -7,7 +7,11 @@ export class StudentGuardianResponseDto {
   @ApiProperty({ description: '家长名称。', example: '王女士' })
   displayName!: string;
 
-  @ApiProperty({ description: '联系电话。', example: '13800138000', nullable: true })
+  @ApiProperty({
+    description: '联系电话。',
+    example: '13800138000',
+    nullable: true,
+  })
   phone!: string | null;
 
   @ApiProperty({ description: '关系。', example: 'MOTHER' })
@@ -83,15 +87,25 @@ export class StudentResponseDto {
   })
   guardians!: StudentGuardianResponseDto[];
 
-  @ApiProperty({ description: '创建时间。', example: '2026-03-15T13:00:00.000Z' })
+  @ApiProperty({
+    description: '创建时间。',
+    example: '2026-03-15T13:00:00.000Z',
+  })
   createdAt!: Date;
 
-  @ApiProperty({ description: '更新时间。', example: '2026-03-15T13:10:00.000Z' })
+  @ApiProperty({
+    description: '更新时间。',
+    example: '2026-03-15T13:10:00.000Z',
+  })
   updatedAt!: Date;
 }
 
 export class StudentListResponseDto {
-  @ApiProperty({ description: '学生列表。', type: StudentResponseDto, isArray: true })
+  @ApiProperty({
+    description: '学生列表。',
+    type: StudentResponseDto,
+    isArray: true,
+  })
   items!: StudentResponseDto[];
 
   @ApiProperty({ description: '当前页码。', example: 1 })

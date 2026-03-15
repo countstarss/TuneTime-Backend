@@ -131,7 +131,10 @@ export class BookingsService {
     return Number(value.toFixed(2));
   }
 
-  private hasStatus(status: BookingStatus, candidates: BookingStatus[]): boolean {
+  private hasStatus(
+    status: BookingStatus,
+    candidates: BookingStatus[],
+  ): boolean {
     return candidates.includes(status);
   }
 
@@ -288,7 +291,9 @@ export class BookingsService {
     return booking;
   }
 
-  private async findBookingByNoOrThrow(bookingNo: string): Promise<BookingWithRelations> {
+  private async findBookingByNoOrThrow(
+    bookingNo: string,
+  ): Promise<BookingWithRelations> {
     const booking = await this.prisma.booking.findUnique({
       where: { bookingNo },
       include: this.getBookingInclude(),
@@ -319,81 +324,89 @@ export class BookingsService {
     subjectId: string;
     serviceAddressId: string;
   }): Promise<BookingContext> {
-    const [teacherProfile, studentProfile, guardianProfile, subject, serviceAddress, teacherSubject] =
-      await Promise.all([
-        this.prisma.teacherProfile.findUnique({
-          where: { id: params.teacherProfileId },
-          select: {
-            id: true,
-            userId: true,
-            displayName: true,
-            verificationStatus: true,
-            baseHourlyRate: true,
-          },
-        }),
-        this.prisma.studentProfile.findUnique({
-          where: { id: params.studentProfileId },
-          select: {
-            id: true,
-            userId: true,
-            displayName: true,
-            gradeLevel: true,
-          },
-        }),
-        params.guardianProfileId
-          ? this.prisma.guardianProfile.findUnique({
-              where: { id: params.guardianProfileId },
-              select: {
-                id: true,
-                userId: true,
-                displayName: true,
-                phone: true,
-              },
-            })
-          : Promise.resolve(null),
-        this.prisma.subject.findUnique({
-          where: { id: params.subjectId },
-          select: {
-            id: true,
-            code: true,
-            name: true,
-          },
-        }),
-        this.prisma.address.findUnique({
-          where: { id: params.serviceAddressId },
-          select: {
-            id: true,
-            userId: true,
-            label: true,
-            contactName: true,
-            contactPhone: true,
-            country: true,
-            province: true,
-            city: true,
-            district: true,
-            street: true,
-            building: true,
-          },
-        }),
-        this.prisma.teacherSubject.findFirst({
-          where: {
-            teacherProfileId: params.teacherProfileId,
-            subjectId: params.subjectId,
-            isActive: true,
-          },
-          select: {
-            id: true,
-            hourlyRate: true,
-            trialRate: true,
-          },
-        }),
-      ]);
+    const [
+      teacherProfile,
+      studentProfile,
+      guardianProfile,
+      subject,
+      serviceAddress,
+      teacherSubject,
+    ] = await Promise.all([
+      this.prisma.teacherProfile.findUnique({
+        where: { id: params.teacherProfileId },
+        select: {
+          id: true,
+          userId: true,
+          displayName: true,
+          verificationStatus: true,
+          baseHourlyRate: true,
+        },
+      }),
+      this.prisma.studentProfile.findUnique({
+        where: { id: params.studentProfileId },
+        select: {
+          id: true,
+          userId: true,
+          displayName: true,
+          gradeLevel: true,
+        },
+      }),
+      params.guardianProfileId
+        ? this.prisma.guardianProfile.findUnique({
+            where: { id: params.guardianProfileId },
+            select: {
+              id: true,
+              userId: true,
+              displayName: true,
+              phone: true,
+            },
+          })
+        : Promise.resolve(null),
+      this.prisma.subject.findUnique({
+        where: { id: params.subjectId },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+        },
+      }),
+      this.prisma.address.findUnique({
+        where: { id: params.serviceAddressId },
+        select: {
+          id: true,
+          userId: true,
+          label: true,
+          contactName: true,
+          contactPhone: true,
+          country: true,
+          province: true,
+          city: true,
+          district: true,
+          street: true,
+          building: true,
+        },
+      }),
+      this.prisma.teacherSubject.findFirst({
+        where: {
+          teacherProfileId: params.teacherProfileId,
+          subjectId: params.subjectId,
+          isActive: true,
+        },
+        select: {
+          id: true,
+          hourlyRate: true,
+          trialRate: true,
+        },
+      }),
+    ]);
 
     if (!teacherProfile) {
       throw new NotFoundException(`未找到老师档案：${params.teacherProfileId}`);
     }
 
-    if (teacherProfile.verificationStatus !== TeacherVerificationStatus.APPROVED) {
+    if (
+      teacherProfile.verificationStatus !== TeacherVerificationStatus.APPROVED
+    ) {
       throw new BadRequestException('当前老师尚未审核通过，不能创建预约');
     }
 
@@ -402,7 +415,9 @@ export class BookingsService {
     }
 
     if (params.guardianProfileId && !guardianProfile) {
-      throw new NotFoundException(`未找到家长档案：${params.guardianProfileId}`);
+      throw new NotFoundException(
+        `未找到家长档案：${params.guardianProfileId}`,
+      );
     }
 
     if (!subject) {
@@ -432,7 +447,9 @@ export class BookingsService {
       }
 
       if (serviceAddress.userId !== guardianProfile.userId) {
-        throw new BadRequestException('服务地址不属于当前家长账号，无法用于本次预约');
+        throw new BadRequestException(
+          '服务地址不属于当前家长账号，无法用于本次预约',
+        );
       }
     }
 
@@ -457,7 +474,10 @@ export class BookingsService {
       (params.hourlyRate * params.durationMinutes) / 60,
     );
     const totalAmount = this.roundCurrency(
-      subtotalAmount - params.discountAmount + params.platformFeeAmount + params.travelFeeAmount,
+      subtotalAmount -
+        params.discountAmount +
+        params.platformFeeAmount +
+        params.travelFeeAmount,
     );
 
     if (totalAmount < 0) {
@@ -481,7 +501,9 @@ export class BookingsService {
       startAt: { lt: params.endAt },
       endAt: { gt: params.startAt },
       status: { in: this.activeConflictStatuses },
-      ...(params.excludeBookingId ? { id: { not: params.excludeBookingId } } : {}),
+      ...(params.excludeBookingId
+        ? { id: { not: params.excludeBookingId } }
+        : {}),
     } satisfies Prisma.BookingWhereInput;
 
     const [teacherConflict, studentConflict] = await Promise.all([
@@ -512,14 +534,21 @@ export class BookingsService {
 
   private pickHourlyRate(context: BookingContext, isTrial: boolean): number {
     if (isTrial) {
-      return this.toNumber(context.teacherSubject?.trialRate ?? context.teacherSubject?.hourlyRate) ??
+      return (
+        this.toNumber(
+          context.teacherSubject?.trialRate ??
+            context.teacherSubject?.hourlyRate,
+        ) ??
         this.toNumber(context.teacherProfile.baseHourlyRate) ??
-        0;
+        0
+      );
     }
 
-    return this.toNumber(context.teacherSubject?.hourlyRate) ??
+    return (
+      this.toNumber(context.teacherSubject?.hourlyRate) ??
       this.toNumber(context.teacherProfile.baseHourlyRate) ??
-      0;
+      0
+    );
   }
 
   async create(dto: CreateBookingDto): Promise<BookingResponseDto> {
@@ -530,7 +559,9 @@ export class BookingsService {
       throw new BadRequestException('预约结束时间必须晚于开始时间');
     }
 
-    const durationMinutes = Math.ceil((endAt.getTime() - startAt.getTime()) / 60000);
+    const durationMinutes = Math.ceil(
+      (endAt.getTime() - startAt.getTime()) / 60000,
+    );
     const context = await this.loadBookingContext({
       teacherProfileId: dto.teacherProfileId,
       studentProfileId: dto.studentProfileId,
@@ -577,7 +608,9 @@ export class BookingsService {
         platformFeeAmount,
         travelFeeAmount,
         totalAmount,
-        paymentDueAt: dto.paymentDueAt ? this.parseDate(dto.paymentDueAt, 'paymentDueAt') : null,
+        paymentDueAt: dto.paymentDueAt
+          ? this.parseDate(dto.paymentDueAt, 'paymentDueAt')
+          : null,
         planSummary: dto.planSummary?.trim() || null,
         notes: dto.notes?.trim() || null,
       },
@@ -595,9 +628,15 @@ export class BookingsService {
 
     const where: Prisma.BookingWhereInput = {
       ...(query.bookingNo ? { bookingNo: query.bookingNo.trim() } : {}),
-      ...(query.teacherProfileId ? { teacherProfileId: query.teacherProfileId.trim() } : {}),
-      ...(query.studentProfileId ? { studentProfileId: query.studentProfileId.trim() } : {}),
-      ...(query.guardianProfileId ? { guardianProfileId: query.guardianProfileId.trim() } : {}),
+      ...(query.teacherProfileId
+        ? { teacherProfileId: query.teacherProfileId.trim() }
+        : {}),
+      ...(query.studentProfileId
+        ? { studentProfileId: query.studentProfileId.trim() }
+        : {}),
+      ...(query.guardianProfileId
+        ? { guardianProfileId: query.guardianProfileId.trim() }
+        : {}),
       ...(query.subjectId ? { subjectId: query.subjectId.trim() } : {}),
       ...(query.status ? { status: query.status } : {}),
       ...(query.paymentStatus ? { paymentStatus: query.paymentStatus } : {}),
@@ -652,7 +691,7 @@ export class BookingsService {
         : {}),
     };
 
-    const [items, total] = await this.prisma.$transaction([
+    const [items, total] = await Promise.all([
       this.prisma.booking.findMany({
         where,
         include: this.getBookingInclude(),
@@ -695,19 +734,29 @@ export class BookingsService {
       throw new BadRequestException('当前预约状态不允许再修改基础信息');
     }
 
-    const teacherProfileId = dto.teacherProfileId?.trim() || current.teacherProfileId;
-    const studentProfileId = dto.studentProfileId?.trim() || current.studentProfileId;
-    const guardianProfileId = dto.guardianProfileId?.trim() || current.guardianProfileId;
+    const teacherProfileId =
+      dto.teacherProfileId?.trim() || current.teacherProfileId;
+    const studentProfileId =
+      dto.studentProfileId?.trim() || current.studentProfileId;
+    const guardianProfileId =
+      dto.guardianProfileId?.trim() || current.guardianProfileId;
     const subjectId = dto.subjectId?.trim() || current.subjectId;
-    const serviceAddressId = dto.serviceAddressId?.trim() || current.serviceAddressId;
-    const startAt = dto.startAt ? this.parseDate(dto.startAt, 'startAt') : current.startAt;
-    const endAt = dto.endAt ? this.parseDate(dto.endAt, 'endAt') : current.endAt;
+    const serviceAddressId =
+      dto.serviceAddressId?.trim() || current.serviceAddressId;
+    const startAt = dto.startAt
+      ? this.parseDate(dto.startAt, 'startAt')
+      : current.startAt;
+    const endAt = dto.endAt
+      ? this.parseDate(dto.endAt, 'endAt')
+      : current.endAt;
 
     if (endAt <= startAt) {
       throw new BadRequestException('预约结束时间必须晚于开始时间');
     }
 
-    const durationMinutes = Math.ceil((endAt.getTime() - startAt.getTime()) / 60000);
+    const durationMinutes = Math.ceil(
+      (endAt.getTime() - startAt.getTime()) / 60000,
+    );
     const context = await this.loadBookingContext({
       teacherProfileId,
       studentProfileId,
@@ -726,11 +775,12 @@ export class BookingsService {
 
     const isTrial = dto.isTrial ?? current.isTrial;
     const hourlyRate = this.pickHourlyRate(context, isTrial);
-    const discountAmount = dto.discountAmount ?? (this.toNumber(current.discountAmount) ?? 0);
+    const discountAmount =
+      dto.discountAmount ?? this.toNumber(current.discountAmount) ?? 0;
     const platformFeeAmount =
-      dto.platformFeeAmount ?? (this.toNumber(current.platformFeeAmount) ?? 0);
+      dto.platformFeeAmount ?? this.toNumber(current.platformFeeAmount) ?? 0;
     const travelFeeAmount =
-      dto.travelFeeAmount ?? (this.toNumber(current.travelFeeAmount) ?? 0);
+      dto.travelFeeAmount ?? this.toNumber(current.travelFeeAmount) ?? 0;
     const { subtotalAmount, totalAmount } = this.calculateAmounts({
       hourlyRate,
       durationMinutes,
@@ -749,7 +799,8 @@ export class BookingsService {
         serviceAddressId,
         startAt,
         endAt,
-        timezone: dto.timezone !== undefined ? dto.timezone.trim() : current.timezone,
+        timezone:
+          dto.timezone !== undefined ? dto.timezone.trim() : current.timezone,
         isTrial,
         hourlyRate,
         durationMinutes,
@@ -765,8 +816,11 @@ export class BookingsService {
               : null
             : current.paymentDueAt,
         planSummary:
-          dto.planSummary !== undefined ? dto.planSummary?.trim() || null : current.planSummary,
-        notes: dto.notes !== undefined ? dto.notes?.trim() || null : current.notes,
+          dto.planSummary !== undefined
+            ? dto.planSummary?.trim() || null
+            : current.planSummary,
+        notes:
+          dto.notes !== undefined ? dto.notes?.trim() || null : current.notes,
       },
       include: this.getBookingInclude(),
     });
@@ -785,8 +839,12 @@ export class BookingsService {
       where: { id },
       data: {
         status: BookingStatus.PENDING_PAYMENT,
-        teacherAcceptedAt: dto.acceptedAt ? this.parseDate(dto.acceptedAt, 'acceptedAt') : new Date(),
-        ...(dto.planSummary !== undefined ? { planSummary: dto.planSummary.trim() || null } : {}),
+        teacherAcceptedAt: dto.acceptedAt
+          ? this.parseDate(dto.acceptedAt, 'acceptedAt')
+          : new Date(),
+        ...(dto.planSummary !== undefined
+          ? { planSummary: dto.planSummary.trim() || null }
+          : {}),
       },
       include: this.getBookingInclude(),
     });
@@ -794,7 +852,10 @@ export class BookingsService {
     return this.toResponse(booking);
   }
 
-  async guardianConfirm(id: string, dto: ConfirmBookingDto): Promise<BookingResponseDto> {
+  async guardianConfirm(
+    id: string,
+    dto: ConfirmBookingDto,
+  ): Promise<BookingResponseDto> {
     const current = await this.findBookingOrThrow(id);
 
     if (
@@ -813,7 +874,9 @@ export class BookingsService {
         guardianConfirmedAt: dto.guardianConfirmedAt
           ? this.parseDate(dto.guardianConfirmedAt, 'guardianConfirmedAt')
           : new Date(),
-        ...(dto.planSummary !== undefined ? { planSummary: dto.planSummary.trim() || null } : {}),
+        ...(dto.planSummary !== undefined
+          ? { planSummary: dto.planSummary.trim() || null }
+          : {}),
       },
       include: this.getBookingInclude(),
     });
@@ -821,10 +884,16 @@ export class BookingsService {
     return this.toResponse(booking);
   }
 
-  async updatePayment(id: string, dto: UpdateBookingPaymentDto): Promise<BookingResponseDto> {
+  async updatePayment(
+    id: string,
+    dto: UpdateBookingPaymentDto,
+  ): Promise<BookingResponseDto> {
     const current = await this.findBookingOrThrow(id);
 
-    if (current.status === BookingStatus.CANCELLED && dto.paymentStatus === PaymentStatus.PAID) {
+    if (
+      current.status === BookingStatus.CANCELLED &&
+      dto.paymentStatus === PaymentStatus.PAID
+    ) {
       throw new BadRequestException('已取消预约不能标记为支付成功');
     }
 
@@ -836,7 +905,10 @@ export class BookingsService {
     }
 
     let nextStatus = current.status;
-    if (dto.paymentStatus === PaymentStatus.PAID && current.status === BookingStatus.PENDING_PAYMENT) {
+    if (
+      dto.paymentStatus === PaymentStatus.PAID &&
+      current.status === BookingStatus.PENDING_PAYMENT
+    ) {
       nextStatus = BookingStatus.CONFIRMED;
     }
     if (dto.paymentStatus === PaymentStatus.REFUNDED) {
@@ -885,7 +957,9 @@ export class BookingsService {
         status: BookingStatus.CANCELLED,
         cancellationReason: dto.cancellationReason,
         cancelledByUserId: dto.cancelledByUserId ?? null,
-        cancelledAt: dto.cancelledAt ? this.parseDate(dto.cancelledAt, 'cancelledAt') : new Date(),
+        cancelledAt: dto.cancelledAt
+          ? this.parseDate(dto.cancelledAt, 'cancelledAt')
+          : new Date(),
       },
       include: this.getBookingInclude(),
     });

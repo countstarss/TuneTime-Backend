@@ -61,7 +61,9 @@ export class GuardiansController {
     description: '查询成功，返回分页结果。',
     type: GuardianListResponseDto,
   })
-  findAll(@Query() query: ListGuardiansQueryDto): Promise<GuardianListResponseDto> {
+  findAll(
+    @Query() query: ListGuardiansQueryDto,
+  ): Promise<GuardianListResponseDto> {
     return this.guardiansService.findAll(query);
   }
 

@@ -10,10 +10,16 @@ export class LessonBookingSummaryDto {
   @ApiProperty({ description: '预约状态。', example: 'CONFIRMED' })
   status!: string;
 
-  @ApiProperty({ description: '预约开始时间。', example: '2026-03-20T09:00:00.000Z' })
+  @ApiProperty({
+    description: '预约开始时间。',
+    example: '2026-03-20T09:00:00.000Z',
+  })
   startAt!: Date;
 
-  @ApiProperty({ description: '预约结束时间。', example: '2026-03-20T10:00:00.000Z' })
+  @ApiProperty({
+    description: '预约结束时间。',
+    example: '2026-03-20T10:00:00.000Z',
+  })
   endAt!: Date;
 }
 
@@ -21,7 +27,10 @@ export class LessonTeacherSummaryDto {
   @ApiProperty({ description: '老师档案 ID。', example: 'cmc123teacher001' })
   id!: string;
 
-  @ApiProperty({ description: '老师用户 ID。', example: 'cmc123user-teacher001' })
+  @ApiProperty({
+    description: '老师用户 ID。',
+    example: 'cmc123user-teacher001',
+  })
   userId!: string;
 
   @ApiProperty({ description: '老师展示名。', example: '李老师' })
@@ -32,7 +41,12 @@ export class LessonStudentSummaryDto {
   @ApiProperty({ description: '学生档案 ID。', example: 'cmc123student001' })
   id!: string;
 
-  @ApiProperty({ description: '学生用户 ID。', example: 'cmc123user-student001', nullable: true, required: false })
+  @ApiProperty({
+    description: '学生用户 ID。',
+    example: 'cmc123user-student001',
+    nullable: true,
+    required: false,
+  })
   userId!: string | null;
 
   @ApiProperty({ description: '学生昵称。', example: '小宇' })
@@ -58,49 +72,124 @@ export class LessonResponseDto {
   @ApiProperty({ description: '出勤状态。', example: 'SCHEDULED' })
   attendanceStatus!: string;
 
-  @ApiProperty({ description: '签到时间。', example: '2026-03-20T08:58:00.000Z', nullable: true, required: false })
+  @ApiProperty({
+    description: '签到时间。',
+    example: '2026-03-20T08:58:00.000Z',
+    nullable: true,
+    required: false,
+  })
   checkInAt!: Date | null;
 
-  @ApiProperty({ description: '签到纬度。', example: 39.1267, nullable: true, required: false })
+  @ApiProperty({
+    description: '签到纬度。',
+    example: 39.1267,
+    nullable: true,
+    required: false,
+  })
   checkInLatitude!: number | null;
 
-  @ApiProperty({ description: '签到经度。', example: 117.2059, nullable: true, required: false })
+  @ApiProperty({
+    description: '签到经度。',
+    example: 117.2059,
+    nullable: true,
+    required: false,
+  })
   checkInLongitude!: number | null;
 
-  @ApiProperty({ description: '签到地址。', example: '天津市南开区黄河道 100 号', nullable: true, required: false })
+  @ApiProperty({
+    description: '签到地址。',
+    example: '天津市南开区黄河道 100 号',
+    nullable: true,
+    required: false,
+  })
   checkInAddress!: string | null;
 
-  @ApiProperty({ description: '实际上课开始时间。', example: '2026-03-20T09:00:00.000Z', nullable: true, required: false })
+  @ApiProperty({
+    description: '实际上课开始时间。',
+    example: '2026-03-20T09:00:00.000Z',
+    nullable: true,
+    required: false,
+  })
   startedAt!: Date | null;
 
-  @ApiProperty({ description: '实际上课结束时间。', example: '2026-03-20T10:00:00.000Z', nullable: true, required: false })
+  @ApiProperty({
+    description: '实际上课结束时间。',
+    example: '2026-03-20T10:00:00.000Z',
+    nullable: true,
+    required: false,
+  })
   endedAt!: Date | null;
 
-  @ApiProperty({ description: '签退时间。', example: '2026-03-20T10:05:00.000Z', nullable: true, required: false })
+  @ApiProperty({
+    description: '签退时间。',
+    example: '2026-03-20T10:05:00.000Z',
+    nullable: true,
+    required: false,
+  })
   checkOutAt!: Date | null;
 
-  @ApiProperty({ description: '签退纬度。', example: 39.1267, nullable: true, required: false })
+  @ApiProperty({
+    description: '签退纬度。',
+    example: 39.1267,
+    nullable: true,
+    required: false,
+  })
   checkOutLatitude!: number | null;
 
-  @ApiProperty({ description: '签退经度。', example: 117.2059, nullable: true, required: false })
+  @ApiProperty({
+    description: '签退经度。',
+    example: 117.2059,
+    nullable: true,
+    required: false,
+  })
   checkOutLongitude!: number | null;
 
-  @ApiProperty({ description: '签退地址。', example: '天津市南开区黄河道 100 号', nullable: true, required: false })
+  @ApiProperty({
+    description: '签退地址。',
+    example: '天津市南开区黄河道 100 号',
+    nullable: true,
+    required: false,
+  })
   checkOutAddress!: string | null;
 
-  @ApiProperty({ description: '老师总结。', example: '完成右手五指练习。', nullable: true, required: false })
+  @ApiProperty({
+    description: '老师总结。',
+    example: '完成右手五指练习。',
+    nullable: true,
+    required: false,
+  })
   teacherSummary!: string | null;
 
-  @ApiProperty({ description: '作业。', example: '练习《小星星》前 8 小节。', nullable: true, required: false })
+  @ApiProperty({
+    description: '作业。',
+    example: '练习《小星星》前 8 小节。',
+    nullable: true,
+    required: false,
+  })
   homework!: string | null;
 
-  @ApiProperty({ description: '成果视频地址。', example: 'https://example.com/outcome-video.mp4', nullable: true, required: false })
+  @ApiProperty({
+    description: '成果视频地址。',
+    example: 'https://example.com/outcome-video.mp4',
+    nullable: true,
+    required: false,
+  })
   outcomeVideoUrl!: string | null;
 
-  @ApiProperty({ description: '反馈提交时间。', example: '2026-03-20T12:30:00.000Z', nullable: true, required: false })
+  @ApiProperty({
+    description: '反馈提交时间。',
+    example: '2026-03-20T12:30:00.000Z',
+    nullable: true,
+    required: false,
+  })
   feedbackSubmittedAt!: Date | null;
 
-  @ApiProperty({ description: '家长反馈。', example: '老师很有耐心。', nullable: true, required: false })
+  @ApiProperty({
+    description: '家长反馈。',
+    example: '老师很有耐心。',
+    nullable: true,
+    required: false,
+  })
   guardianFeedback!: string | null;
 
   @ApiProperty({ description: '预约摘要。', type: LessonBookingSummaryDto })
@@ -112,15 +201,25 @@ export class LessonResponseDto {
   @ApiProperty({ description: '学生摘要。', type: LessonStudentSummaryDto })
   student!: LessonStudentSummaryDto;
 
-  @ApiProperty({ description: '创建时间。', example: '2026-03-20T08:00:00.000Z' })
+  @ApiProperty({
+    description: '创建时间。',
+    example: '2026-03-20T08:00:00.000Z',
+  })
   createdAt!: Date;
 
-  @ApiProperty({ description: '更新时间。', example: '2026-03-20T12:30:00.000Z' })
+  @ApiProperty({
+    description: '更新时间。',
+    example: '2026-03-20T12:30:00.000Z',
+  })
   updatedAt!: Date;
 }
 
 export class LessonListResponseDto {
-  @ApiProperty({ description: '课程列表。', type: LessonResponseDto, isArray: true })
+  @ApiProperty({
+    description: '课程列表。',
+    type: LessonResponseDto,
+    isArray: true,
+  })
   items!: LessonResponseDto[];
 
   @ApiProperty({ description: '当前页码。', example: 1 })

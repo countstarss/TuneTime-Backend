@@ -78,7 +78,9 @@ export class LessonsController {
     type: LessonResponseDto,
   })
   @ApiNotFoundResponse({ description: '未找到对应课程记录。' })
-  findByBookingId(@Param('bookingId') bookingId: string): Promise<LessonResponseDto> {
+  findByBookingId(
+    @Param('bookingId') bookingId: string,
+  ): Promise<LessonResponseDto> {
     return this.lessonsService.findByBookingId(bookingId);
   }
 
@@ -172,7 +174,8 @@ export class LessonsController {
   @Patch(':id/feedback')
   @ApiOperation({
     summary: '提交课后反馈',
-    description: '提交老师总结、作业、成果视频和家长反馈，自动记录反馈提交时间。',
+    description:
+      '提交老师总结、作业、成果视频和家长反馈，自动记录反馈提交时间。',
   })
   @ApiParam({ name: 'id', description: '课程 ID。' })
   @ApiBody({ type: SubmitLessonFeedbackDto })

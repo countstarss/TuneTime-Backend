@@ -1,6 +1,14 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { IsBoolean, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 export class ListSubjectsQueryDto {
   @ApiPropertyOptional({
@@ -13,7 +21,8 @@ export class ListSubjectsQueryDto {
   keyword?: string;
 
   @ApiPropertyOptional({
-    description: '按启用状态筛选。传 true 只查启用科目，传 false 只查停用科目。',
+    description:
+      '按启用状态筛选。传 true 只查启用科目，传 false 只查停用科目。',
     example: true,
   })
   @IsOptional()

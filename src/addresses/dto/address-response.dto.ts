@@ -7,7 +7,12 @@ export class AddressResponseDto {
   @ApiProperty({ description: '所属用户 ID。', example: 'cmc123user001' })
   userId!: string;
 
-  @ApiProperty({ description: '地址标签。', example: '家里', nullable: true, required: false })
+  @ApiProperty({
+    description: '地址标签。',
+    example: '家里',
+    nullable: true,
+    required: false,
+  })
   label!: string | null;
 
   @ApiProperty({ description: '联系人姓名。', example: '王女士' })
@@ -31,27 +36,52 @@ export class AddressResponseDto {
   @ApiProperty({ description: '街道地址。', example: '黄河道 100 号' })
   street!: string;
 
-  @ApiProperty({ description: '楼栋信息。', example: '3 号楼 2 单元 501', nullable: true, required: false })
+  @ApiProperty({
+    description: '楼栋信息。',
+    example: '3 号楼 2 单元 501',
+    nullable: true,
+    required: false,
+  })
   building!: string | null;
 
-  @ApiProperty({ description: '纬度。', example: 39.1267, nullable: true, required: false })
+  @ApiProperty({
+    description: '纬度。',
+    example: 39.1267,
+    nullable: true,
+    required: false,
+  })
   latitude!: number | null;
 
-  @ApiProperty({ description: '经度。', example: 117.2059, nullable: true, required: false })
+  @ApiProperty({
+    description: '经度。',
+    example: 117.2059,
+    nullable: true,
+    required: false,
+  })
   longitude!: number | null;
 
   @ApiProperty({ description: '是否默认地址。', example: true })
   isDefault!: boolean;
 
-  @ApiProperty({ description: '创建时间。', example: '2026-03-15T13:00:00.000Z' })
+  @ApiProperty({
+    description: '创建时间。',
+    example: '2026-03-15T13:00:00.000Z',
+  })
   createdAt!: Date;
 
-  @ApiProperty({ description: '更新时间。', example: '2026-03-15T13:10:00.000Z' })
+  @ApiProperty({
+    description: '更新时间。',
+    example: '2026-03-15T13:10:00.000Z',
+  })
   updatedAt!: Date;
 }
 
 export class AddressListResponseDto {
-  @ApiProperty({ description: '地址列表。', type: AddressResponseDto, isArray: true })
+  @ApiProperty({
+    description: '地址列表。',
+    type: AddressResponseDto,
+    isArray: true,
+  })
   items!: AddressResponseDto[];
 
   @ApiProperty({ description: '当前页码。', example: 1 })
