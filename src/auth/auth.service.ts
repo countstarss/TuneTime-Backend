@@ -3,6 +3,7 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+import { PlatformRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { hashPassword, verifyPassword } from './password.util';
 import { signAccessToken } from './token.util';
@@ -33,6 +34,7 @@ type PublicUser = {
   id: string;
   name: string | null;
   email: string;
+  roles: PlatformRole[];
 };
 
 type AuthResponse = {
@@ -98,11 +100,13 @@ export class AuthService {
     id: string;
     name: string | null;
     email: string | null;
+    roles?: Array<{ role: PlatformRole }>;
   }): PublicUser {
     return {
       id: user.id,
       name: user.name,
       email: user.email ?? '',
+      roles: user.roles?.map((item) => item.role) ?? [],
     };
   }
 
@@ -115,7 +119,10 @@ export class AuthService {
       throw new UnauthorizedException('User email is missing');
     }
 
-    const publicUser = this.toPublicUser(user);
+    const publicUser = await this.getProfileByUserId(user.id);
+    if (!publicUser) {
+      throw new UnauthorizedException('User profile not found');
+    }
     const accessToken = await signAccessToken({
       sub: publicUser.id,
       email: publicUser.email,
@@ -278,13 +285,23 @@ export class AuthService {
           name: string | null;
           email: string | null;
           status: string;
+          roles: Array<{ role: PlatformRole }>;
         } | null>;
       };
     };
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, name: true, email: true, status: true },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        status: true,
+        roles: {
+          orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+          select: { role: true },
+        },
+      },
     });
 
     if (!user || user.status !== USER_STATUS_ACTIVE || !user.email) {

@@ -177,6 +177,69 @@ enum DocumentReviewStatus {
   REJECTED
 }
 
+enum CrmLeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  CONVERTED
+  LOST
+}
+
+enum CrmOpportunityStage {
+  NEW
+  QUALIFIED
+  TRIAL_SCHEDULED
+  TRIAL_COMPLETED
+  WON
+  LOST
+}
+
+enum CrmTaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+enum CrmTaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum CrmActivityType {
+  NOTE
+  CALL
+  WECHAT
+  FOLLOW_UP
+  SYSTEM
+}
+
+enum CrmCaseStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_CUSTOMER
+  RESOLVED
+  CLOSED
+}
+
+enum CrmCasePriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum CrmCaseCategory {
+  SCHEDULE_CHANGE
+  COMPLAINT
+  REFUND
+  TEACHER_CHANGE
+  PAYMENT
+  OTHER
+}
+
 model User {
   id            String     @id @default(cuid())
   name          String?
@@ -544,37 +607,37 @@ model Address {
 }
 
 model Booking {
-  id                 String                     @id @default(cuid())
-  bookingNo          String                     @unique @map("booking_no")
-  teacherProfileId   String                     @map("teacher_profile_id")
-  studentProfileId   String                     @map("student_profile_id")
-  guardianProfileId  String?                    @map("guardian_profile_id")
-  subjectId          String                     @map("subject_id")
-  serviceAddressId   String                     @map("service_address_id")
-  startAt            DateTime                   @map("start_at")
-  endAt              DateTime                   @map("end_at")
-  timezone           String                     @default("Asia/Shanghai")
-  status             BookingStatus              @default(PENDING_ACCEPTANCE)
-  cancellationReason BookingCancellationReason? @map("cancellation_reason")
-  cancelledAt        DateTime?                  @map("cancelled_at")
-  cancelledByUserId  String?                    @map("cancelled_by_user_id")
-  isTrial            Boolean                    @default(false) @map("is_trial")
-  teacherAcceptedAt  DateTime?                  @map("teacher_accepted_at")
-  guardianConfirmedAt DateTime?                 @map("guardian_confirmed_at")
-  hourlyRate         Decimal                    @map("hourly_rate") @db.Decimal(10, 2)
-  durationMinutes    Int                        @map("duration_minutes")
-  subtotalAmount     Decimal                    @map("subtotal_amount") @db.Decimal(12, 2)
-  discountAmount     Decimal                    @default(0) @map("discount_amount") @db.Decimal(12, 2)
-  platformFeeAmount  Decimal                    @default(0) @map("platform_fee_amount") @db.Decimal(12, 2)
-  travelFeeAmount    Decimal                    @default(0) @map("travel_fee_amount") @db.Decimal(12, 2)
-  totalAmount        Decimal                    @map("total_amount") @db.Decimal(12, 2)
-  currency           Currency                   @default(CNY)
-  paymentStatus      PaymentStatus              @default(UNPAID) @map("payment_status")
-  paymentDueAt       DateTime?                  @map("payment_due_at")
-  planSummary        String?                    @map("plan_summary")
-  notes              String?
-  createdAt          DateTime                   @default(now()) @map("created_at")
-  updatedAt          DateTime                   @updatedAt @map("updated_at")
+  id                  String                     @id @default(cuid())
+  bookingNo           String                     @unique @map("booking_no")
+  teacherProfileId    String                     @map("teacher_profile_id")
+  studentProfileId    String                     @map("student_profile_id")
+  guardianProfileId   String?                    @map("guardian_profile_id")
+  subjectId           String                     @map("subject_id")
+  serviceAddressId    String                     @map("service_address_id")
+  startAt             DateTime                   @map("start_at")
+  endAt               DateTime                   @map("end_at")
+  timezone            String                     @default("Asia/Shanghai")
+  status              BookingStatus              @default(PENDING_ACCEPTANCE)
+  cancellationReason  BookingCancellationReason? @map("cancellation_reason")
+  cancelledAt         DateTime?                  @map("cancelled_at")
+  cancelledByUserId   String?                    @map("cancelled_by_user_id")
+  isTrial             Boolean                    @default(false) @map("is_trial")
+  teacherAcceptedAt   DateTime?                  @map("teacher_accepted_at")
+  guardianConfirmedAt DateTime?                  @map("guardian_confirmed_at")
+  hourlyRate          Decimal                    @map("hourly_rate") @db.Decimal(10, 2)
+  durationMinutes     Int                        @map("duration_minutes")
+  subtotalAmount      Decimal                    @map("subtotal_amount") @db.Decimal(12, 2)
+  discountAmount      Decimal                    @default(0) @map("discount_amount") @db.Decimal(12, 2)
+  platformFeeAmount   Decimal                    @default(0) @map("platform_fee_amount") @db.Decimal(12, 2)
+  travelFeeAmount     Decimal                    @default(0) @map("travel_fee_amount") @db.Decimal(12, 2)
+  totalAmount         Decimal                    @map("total_amount") @db.Decimal(12, 2)
+  currency            Currency                   @default(CNY)
+  paymentStatus       PaymentStatus              @default(UNPAID) @map("payment_status")
+  paymentDueAt        DateTime?                  @map("payment_due_at")
+  planSummary         String?                    @map("plan_summary")
+  notes               String?
+  createdAt           DateTime                   @default(now()) @map("created_at")
+  updatedAt           DateTime                   @updatedAt @map("updated_at")
 
   teacherProfile     TeacherProfile      @relation(fields: [teacherProfileId], references: [id], onDelete: Restrict)
   studentProfile     StudentProfile      @relation(fields: [studentProfileId], references: [id], onDelete: Restrict)
@@ -598,28 +661,28 @@ model Booking {
 }
 
 model Lesson {
-  id               String                 @id @default(cuid())
-  bookingId        String                 @unique @map("booking_id")
-  teacherProfileId String                 @map("teacher_profile_id")
-  studentProfileId String                 @map("student_profile_id")
-  attendanceStatus LessonAttendanceStatus @default(SCHEDULED) @map("attendance_status")
-  checkInAt        DateTime?              @map("check_in_at")
-  checkInLatitude  Decimal?               @map("check_in_latitude") @db.Decimal(10, 7)
-  checkInLongitude Decimal?               @map("check_in_longitude") @db.Decimal(10, 7)
-  checkInAddress   String?                @map("check_in_address")
-  startedAt        DateTime?              @map("started_at")
-  endedAt          DateTime?              @map("ended_at")
-  checkOutAt       DateTime?              @map("check_out_at")
-  checkOutLatitude Decimal?               @map("check_out_latitude") @db.Decimal(10, 7)
-  checkOutLongitude Decimal?              @map("check_out_longitude") @db.Decimal(10, 7)
-  checkOutAddress  String?                @map("check_out_address")
-  teacherSummary   String?                @map("teacher_summary")
-  homework         String?
-  outcomeVideoUrl  String?                @map("outcome_video_url")
-  feedbackSubmittedAt DateTime?           @map("feedback_submitted_at")
-  guardianFeedback String?                @map("guardian_feedback")
-  createdAt        DateTime               @default(now()) @map("created_at")
-  updatedAt        DateTime               @updatedAt @map("updated_at")
+  id                  String                 @id @default(cuid())
+  bookingId           String                 @unique @map("booking_id")
+  teacherProfileId    String                 @map("teacher_profile_id")
+  studentProfileId    String                 @map("student_profile_id")
+  attendanceStatus    LessonAttendanceStatus @default(SCHEDULED) @map("attendance_status")
+  checkInAt           DateTime?              @map("check_in_at")
+  checkInLatitude     Decimal?               @map("check_in_latitude") @db.Decimal(10, 7)
+  checkInLongitude    Decimal?               @map("check_in_longitude") @db.Decimal(10, 7)
+  checkInAddress      String?                @map("check_in_address")
+  startedAt           DateTime?              @map("started_at")
+  endedAt             DateTime?              @map("ended_at")
+  checkOutAt          DateTime?              @map("check_out_at")
+  checkOutLatitude    Decimal?               @map("check_out_latitude") @db.Decimal(10, 7)
+  checkOutLongitude   Decimal?               @map("check_out_longitude") @db.Decimal(10, 7)
+  checkOutAddress     String?                @map("check_out_address")
+  teacherSummary      String?                @map("teacher_summary")
+  homework            String?
+  outcomeVideoUrl     String?                @map("outcome_video_url")
+  feedbackSubmittedAt DateTime?              @map("feedback_submitted_at")
+  guardianFeedback    String?                @map("guardian_feedback")
+  createdAt           DateTime               @default(now()) @map("created_at")
+  updatedAt           DateTime               @updatedAt @map("updated_at")
 
   booking        Booking        @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   teacherProfile TeacherProfile @relation(fields: [teacherProfileId], references: [id], onDelete: Restrict)
@@ -631,19 +694,19 @@ model Lesson {
 }
 
 model TeacherReview {
-  id                String   @id @default(cuid())
-  bookingId         String   @unique @map("booking_id")
-  teacherProfileId  String   @map("teacher_profile_id")
-  studentProfileId  String   @map("student_profile_id")
-  guardianProfileId String?  @map("guardian_profile_id")
-  rating            Int
-  lessonQualityRating Int?   @map("lesson_quality_rating")
-  teacherPerformanceRating Int? @map("teacher_performance_rating")
-  comment           String?
-  improvementNotes  String?  @map("improvement_notes")
-  tags              Json?
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  id                       String   @id @default(cuid())
+  bookingId                String   @unique @map("booking_id")
+  teacherProfileId         String   @map("teacher_profile_id")
+  studentProfileId         String   @map("student_profile_id")
+  guardianProfileId        String?  @map("guardian_profile_id")
+  rating                   Int
+  lessonQualityRating      Int?     @map("lesson_quality_rating")
+  teacherPerformanceRating Int?     @map("teacher_performance_rating")
+  comment                  String?
+  improvementNotes         String?  @map("improvement_notes")
+  tags                     Json?
+  createdAt                DateTime @default(now()) @map("created_at")
+  updatedAt                DateTime @updatedAt @map("updated_at")
 
   booking         Booking          @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   teacherProfile  TeacherProfile   @relation(fields: [teacherProfileId], references: [id], onDelete: Restrict)
@@ -779,6 +842,157 @@ model WalletTransaction {
   @@index([status, occurredAt])
   @@index([createdByUserId])
   @@map("wallet_transactions")
+}
+
+model CrmLead {
+  id                         String        @id @default(cuid())
+  fullName                   String        @map("full_name")
+  phone                      String?
+  wechat                     String?
+  city                       String?
+  source                     String?
+  status                     CrmLeadStatus @default(NEW)
+  interestSubjectId          String?       @map("interest_subject_id")
+  budgetMin                  Decimal?      @map("budget_min") @db.Decimal(10, 2)
+  budgetMax                  Decimal?      @map("budget_max") @db.Decimal(10, 2)
+  desiredStartDate           DateTime?     @map("desired_start_date") @db.Date
+  notes                      String?
+  tags                       Json?
+  ownerUserId                String?       @map("owner_user_id")
+  convertedGuardianProfileId String?       @map("converted_guardian_profile_id")
+  convertedStudentProfileId  String?       @map("converted_student_profile_id")
+  lastContactedAt            DateTime?     @map("last_contacted_at")
+  createdAt                  DateTime      @default(now()) @map("created_at")
+  updatedAt                  DateTime      @updatedAt @map("updated_at")
+
+  opportunities CrmOpportunity[]
+  activities    CrmActivity[]
+  tasks         CrmTask[]
+  cases         CrmCase[]
+
+  @@index([status, createdAt])
+  @@index([ownerUserId, status])
+  @@index([phone])
+  @@index([city])
+  @@map("crm_leads")
+}
+
+model CrmOpportunity {
+  id                String              @id @default(cuid())
+  title             String
+  leadId            String?             @map("lead_id")
+  guardianProfileId String?             @map("guardian_profile_id")
+  studentProfileId  String?             @map("student_profile_id")
+  teacherProfileId  String?             @map("teacher_profile_id")
+  subjectId         String?             @map("subject_id")
+  bookingId         String?             @map("booking_id")
+  stage             CrmOpportunityStage @default(NEW)
+  ownerUserId       String?             @map("owner_user_id")
+  estimatedValue    Decimal?            @map("estimated_value") @db.Decimal(12, 2)
+  expectedBookingAt DateTime?           @map("expected_booking_at")
+  nextFollowUpAt    DateTime?           @map("next_follow_up_at")
+  summary           String?
+  lossReason        String?             @map("loss_reason")
+  lastActivityAt    DateTime?           @map("last_activity_at")
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+
+  lead       CrmLead?      @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  activities CrmActivity[]
+  tasks      CrmTask[]
+  cases      CrmCase[]
+
+  @@index([stage, createdAt])
+  @@index([ownerUserId, stage])
+  @@index([leadId])
+  @@index([guardianProfileId])
+  @@index([bookingId])
+  @@map("crm_opportunities")
+}
+
+model CrmTask {
+  id                String          @id @default(cuid())
+  title             String
+  description       String?
+  status            CrmTaskStatus   @default(TODO)
+  priority          CrmTaskPriority @default(MEDIUM)
+  leadId            String?         @map("lead_id")
+  opportunityId     String?         @map("opportunity_id")
+  guardianProfileId String?         @map("guardian_profile_id")
+  bookingId         String?         @map("booking_id")
+  assigneeUserId    String?         @map("assignee_user_id")
+  createdByUserId   String?         @map("created_by_user_id")
+  dueAt             DateTime?       @map("due_at")
+  completedAt       DateTime?       @map("completed_at")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+
+  lead        CrmLead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  opportunity CrmOpportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+
+  @@index([status, dueAt])
+  @@index([assigneeUserId, status])
+  @@index([leadId])
+  @@index([opportunityId])
+  @@index([bookingId])
+  @@map("crm_tasks")
+}
+
+model CrmActivity {
+  id                String          @id @default(cuid())
+  type              CrmActivityType
+  content           String
+  leadId            String?         @map("lead_id")
+  opportunityId     String?         @map("opportunity_id")
+  guardianProfileId String?         @map("guardian_profile_id")
+  bookingId         String?         @map("booking_id")
+  createdByUserId   String?         @map("created_by_user_id")
+  happenedAt        DateTime        @default(now()) @map("happened_at")
+  metadata          Json?
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+
+  lead        CrmLead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  opportunity CrmOpportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+
+  @@index([type, happenedAt])
+  @@index([leadId, happenedAt])
+  @@index([opportunityId, happenedAt])
+  @@index([bookingId, happenedAt])
+  @@map("crm_activities")
+}
+
+model CrmCase {
+  id                String          @id @default(cuid())
+  title             String
+  description       String?
+  category          CrmCaseCategory
+  status            CrmCaseStatus   @default(OPEN)
+  priority          CrmCasePriority @default(MEDIUM)
+  leadId            String?         @map("lead_id")
+  opportunityId     String?         @map("opportunity_id")
+  guardianProfileId String?         @map("guardian_profile_id")
+  studentProfileId  String?         @map("student_profile_id")
+  teacherProfileId  String?         @map("teacher_profile_id")
+  bookingId         String?         @map("booking_id")
+  ownerUserId       String?         @map("owner_user_id")
+  createdByUserId   String?         @map("created_by_user_id")
+  resolutionSummary String?         @map("resolution_summary")
+  nextActionAt      DateTime?       @map("next_action_at")
+  closedAt          DateTime?       @map("closed_at")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+
+  lead        CrmLead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  opportunity CrmOpportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+
+  @@index([status, priority, createdAt])
+  @@index([ownerUserId, status])
+  @@index([guardianProfileId, status])
+  @@index([bookingId, status])
+  @@index([leadId])
+  @@index([opportunityId])
+  @@map("crm_cases")
 }
 
 model AdminAuditLog {

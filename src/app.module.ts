@@ -11,6 +11,7 @@ import { StudentsModule } from './students/students.module';
 import { TeacherReviewsModule } from './teacher-reviews/teacher-reviews.module';
 import { TeachersModule } from './teachers/teachers.module';
 import { SubjectsModule } from './subjects/subjects.module';
+import { CrmModule } from './crm/crm.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { SubjectsModule } from './subjects/subjects.module';
     GuardiansModule,
     StudentsModule,
     TeachersModule,
+    CrmModule,
   ],
   controllers: [AppController],
   providers: [AppService],

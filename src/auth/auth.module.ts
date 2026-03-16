@@ -8,6 +8,6 @@ import { JwtAuthGuard } from './supabase-auth.guard';
   imports: [PrismaModule],
   providers: [AuthService, JwtAuthGuard],
   controllers: [AuthController],
-  exports: [AuthService],
+  exports: [AuthService, JwtAuthGuard],
 })
 export class AuthModule {}
