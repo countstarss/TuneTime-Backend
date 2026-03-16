@@ -2,6 +2,8 @@ import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import {
   BookingStatus,
+  CrmActionRiskLevel,
+  CrmActionRunStatus,
   CrmActivityType,
   CrmCaseCategory,
   CrmCasePriority,
@@ -348,11 +350,63 @@ async function main() {
     };
   });
 
+  const actionRuns = [
+    {
+      id: makeId('crmaction', 0),
+      instruction: '为王女士创建退款工单，原因是老师临时请假',
+      actionKey: 'crm.case.create',
+      status: CrmActionRunStatus.EXECUTED,
+      riskLevel: CrmActionRiskLevel.MEDIUM,
+      requiresApproval: false,
+      approvedByUserId: null,
+      executedByUserId: operatorUserId,
+      entityType: 'CRM_CASE',
+      entityId: cases[0]?.id ?? null,
+      payload: { title: cases[0]?.title, category: CrmCaseCategory.REFUND },
+      result: { success: true },
+      createdAt: addDays(now, -1, 11, 0),
+      updatedAt: addDays(now, -1, 11, 0),
+    },
+    {
+      id: makeId('crmaction', 1),
+      instruction: '给王女士建一个回访任务，明天下午 3 点联系',
+      actionKey: 'crm.task.create',
+      status: CrmActionRunStatus.PREVIEW,
+      riskLevel: CrmActionRiskLevel.LOW,
+      requiresApproval: false,
+      approvedByUserId: null,
+      executedByUserId: operatorUserId,
+      entityType: 'CRM_TASK',
+      entityId: null,
+      payload: { title: '回访王女士', dueAt: addDays(now, 1, 15, 0) },
+      result: { executable: true },
+      createdAt: addDays(now, 0, 9, 30),
+      updatedAt: addDays(now, 0, 9, 30),
+    },
+    {
+      id: makeId('crmaction', 2),
+      instruction: '删除线索：重复的王女士',
+      actionKey: 'crm.lead.delete',
+      status: CrmActionRunStatus.APPROVAL_REQUIRED,
+      riskLevel: CrmActionRiskLevel.HIGH,
+      requiresApproval: true,
+      approvedByUserId: null,
+      executedByUserId: approverUserId,
+      entityType: 'CRM_LEAD',
+      entityId: leads[0]?.id ?? null,
+      payload: { leadId: leads[0]?.id ?? null },
+      result: { reason: '高风险动作，等待人工授权' },
+      createdAt: addDays(now, 0, 10, 0),
+      updatedAt: addDays(now, 0, 10, 0),
+    },
+  ];
+
   await prisma.crmLead.createMany({ data: leads });
   await prisma.crmOpportunity.createMany({ data: opportunities });
   await prisma.crmTask.createMany({ data: tasks });
   await prisma.crmActivity.createMany({ data: activities });
   await prisma.crmCase.createMany({ data: cases });
+  await prisma.crmActionRun.createMany({ data: actionRuns });
 
   console.log(
     JSON.stringify(
@@ -364,6 +418,7 @@ async function main() {
           crmTasks: tasks.length,
           crmActivities: activities.length,
           crmCases: cases.length,
+          crmActionRuns: actionRuns.length,
         },
         sampleAccounts: staff.accounts.map((item) => ({
           role: item.role,

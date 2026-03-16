@@ -15,8 +15,13 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/supabase-auth.guard';
 import { CrmAccessGuard } from './crm-access.guard';
+import { CrmAiService } from './crm-ai.service';
 import { CrmService } from './crm.service';
 import { CreateCrmActivityDto } from './dto/crm-activity.dto';
+import {
+  ExecuteCrmAiActionDto,
+  InterpretCrmAiInstructionDto,
+} from './dto/crm-ai.dto';
 import { CreateCrmCaseDto, UpdateCrmCaseDto } from './dto/crm-case.dto';
 import { CreateCrmLeadDto, UpdateCrmLeadDto } from './dto/crm-lead.dto';
 import {
@@ -40,7 +45,10 @@ type RequestWithUser = Request & { user?: { sub?: string } };
 @UseGuards(JwtAuthGuard, CrmAccessGuard)
 @Controller('crm')
 export class CrmController {
-  constructor(private readonly crmService: CrmService) {}
+  constructor(
+    private readonly crmService: CrmService,
+    private readonly crmAiService: CrmAiService,
+  ) {}
 
   private getActorUserId(req: RequestWithUser) {
     const userId = req.user?.sub;
@@ -200,5 +208,23 @@ export class CrmController {
   @Delete('cases/:id')
   removeCase(@Param('id') id: string, @Req() req: RequestWithUser) {
     return this.crmService.removeCase(id, this.getActorUserId(req));
+  }
+
+  @Get('ai/actions')
+  listAiActions() {
+    return this.crmAiService.listActions();
+  }
+
+  @Post('ai/interpret')
+  interpretAiInstruction(@Body() dto: InterpretCrmAiInstructionDto) {
+    return this.crmAiService.interpret(dto);
+  }
+
+  @Post('ai/execute')
+  executeAiAction(
+    @Body() dto: ExecuteCrmAiActionDto,
+    @Req() req: RequestWithUser,
+  ) {
+    return this.crmAiService.execute(dto, this.getActorUserId(req));
   }
 }

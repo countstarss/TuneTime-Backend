@@ -240,6 +240,20 @@ enum CrmCaseCategory {
   OTHER
 }
 
+enum CrmActionRunStatus {
+  PREVIEW
+  APPROVAL_REQUIRED
+  EXECUTED
+  REJECTED
+  FAILED
+}
+
+enum CrmActionRiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
 model User {
   id            String     @id @default(cuid())
   name          String?
@@ -993,6 +1007,28 @@ model CrmCase {
   @@index([leadId])
   @@index([opportunityId])
   @@map("crm_cases")
+}
+
+model CrmActionRun {
+  id               String             @id @default(cuid())
+  instruction      String?
+  actionKey        String             @map("action_key")
+  status           CrmActionRunStatus @default(PREVIEW)
+  riskLevel        CrmActionRiskLevel @default(LOW) @map("risk_level")
+  requiresApproval Boolean            @default(false) @map("requires_approval")
+  approvedByUserId String?            @map("approved_by_user_id")
+  executedByUserId String?            @map("executed_by_user_id")
+  entityType       String?            @map("entity_type")
+  entityId         String?            @map("entity_id")
+  payload          Json?
+  result           Json?
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+
+  @@index([status, createdAt])
+  @@index([actionKey, createdAt])
+  @@index([entityType, entityId])
+  @@map("crm_action_runs")
 }
 
 model AdminAuditLog {

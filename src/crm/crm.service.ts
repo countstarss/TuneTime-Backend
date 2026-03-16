@@ -5,6 +5,8 @@ import {
 } from '@nestjs/common';
 import {
   BookingStatus,
+  CrmActionRun,
+  CrmActionRunStatus,
   CrmActivity,
   CrmActivityType,
   CrmCase,
@@ -17,10 +19,12 @@ import {
   CrmTask,
   CrmTaskPriority,
   CrmTaskStatus,
+  LessonAttendanceStatus,
   Prisma,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCrmActivityDto } from './dto/crm-activity.dto';
+import { InterpretCrmAiInstructionDto, ExecuteCrmAiActionDto } from './dto/crm-ai.dto';
 import { CreateCrmCaseDto, UpdateCrmCaseDto } from './dto/crm-case.dto';
 import { CreateCrmLeadDto, UpdateCrmLeadDto } from './dto/crm-lead.dto';
 import {
@@ -247,6 +251,40 @@ export class CrmService {
     });
   }
 
+  async recordActionRun(input: {
+    instruction?: string | null;
+    actionKey: string;
+    status: CrmActionRunStatus;
+    riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
+    requiresApproval: boolean;
+    approvedByUserId?: string | null;
+    executedByUserId?: string | null;
+    entityType?: string | null;
+    entityId?: string | null;
+    payload?: unknown;
+    result?: unknown;
+  }) {
+    const actionRun = await this.prisma.crmActionRun.create({
+      data: {
+        instruction: input.instruction ?? null,
+        actionKey: input.actionKey,
+        status: input.status,
+        riskLevel: input.riskLevel,
+        requiresApproval: input.requiresApproval,
+        approvedByUserId: input.approvedByUserId ?? null,
+        executedByUserId: input.executedByUserId ?? null,
+        entityType: input.entityType ?? null,
+        entityId: input.entityId ?? null,
+        payload:
+          input.payload === undefined ? Prisma.JsonNull : this.toJsonValue(input.payload),
+        result:
+          input.result === undefined ? Prisma.JsonNull : this.toJsonValue(input.result),
+      },
+    });
+
+    return this.toActionRunResponse(actionRun);
+  }
+
   private toLeadResponse(lead: CrmLead) {
     return {
       id: lead.id,
@@ -355,6 +393,25 @@ export class CrmService {
     };
   }
 
+  private toActionRunResponse(actionRun: CrmActionRun) {
+    return {
+      id: actionRun.id,
+      instruction: actionRun.instruction,
+      actionKey: actionRun.actionKey,
+      status: actionRun.status,
+      riskLevel: actionRun.riskLevel,
+      requiresApproval: actionRun.requiresApproval,
+      approvedByUserId: actionRun.approvedByUserId,
+      executedByUserId: actionRun.executedByUserId,
+      entityType: actionRun.entityType,
+      entityId: actionRun.entityId,
+      payload: actionRun.payload,
+      result: actionRun.result,
+      createdAt: actionRun.createdAt,
+      updatedAt: actionRun.updatedAt,
+    };
+  }
+
   async getOverview() {
     const now = new Date();
     const todayStart = new Date(now);
@@ -375,8 +432,10 @@ export class CrmService {
       dueTodayTasks,
       openCases,
       urgentCases,
+      pendingActionApprovals,
       recentActivities,
       nextFollowUps,
+      recentActionRuns,
     ] = await Promise.all([
       this.prisma.crmLead.count(),
       this.prisma.crmLead.count({ where: { status: CrmLeadStatus.NEW } }),
@@ -413,6 +472,9 @@ export class CrmService {
           priority: CrmCasePriority.URGENT,
         },
       }),
+      this.prisma.crmActionRun.count({
+        where: { status: CrmActionRunStatus.APPROVAL_REQUIRED },
+      }),
       this.prisma.crmActivity.findMany({
         orderBy: { happenedAt: 'desc' },
         take: 8,
@@ -420,6 +482,10 @@ export class CrmService {
       this.prisma.crmTask.findMany({
         where: { status: { in: [...ACTIONABLE_TASK_STATUSES] } },
         orderBy: [{ dueAt: 'asc' }, { createdAt: 'desc' }],
+        take: 6,
+      }),
+      this.prisma.crmActionRun.findMany({
+        orderBy: { createdAt: 'desc' },
         take: 6,
       }),
     ]);
@@ -438,9 +504,13 @@ export class CrmService {
         dueTodayTasks,
         openCases,
         urgentCases,
+        pendingActionApprovals,
       },
       recentActivities: recentActivities.map((item) => this.toActivityResponse(item)),
       nextFollowUps: nextFollowUps.map((item) => this.toTaskResponse(item)),
+      recentActionRuns: recentActionRuns.map((item) =>
+        this.toActionRunResponse(item),
+      ),
     };
   }
 
