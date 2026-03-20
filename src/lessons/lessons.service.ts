@@ -41,7 +41,7 @@ type LessonWithRelations = Lesson & {
     id: string;
     userId: string | null;
     displayName: string;
-    gradeLevel: string;
+    gradeLevel: string | null;
   };
 };
 

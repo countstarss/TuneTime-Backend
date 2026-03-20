@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBody,
+  ApiBearerAuth,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -18,6 +19,11 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { UseGuards } from '@nestjs/common';
+import { PlatformRole } from '@prisma/client';
+import { JwtAuthGuard } from '../auth/supabase-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { RequireRoles } from '../auth/require-roles.decorator';
 import { CreateStudentDto } from './dto/create-student.dto';
 import { ListStudentsQueryDto } from './dto/list-students-query.dto';
 import {
@@ -30,6 +36,9 @@ import { UpsertStudentGuardianDto } from './dto/upsert-student-guardian.dto';
 import { StudentsService } from './students.service';
 
 @ApiTags('学生管理')
+@ApiBearerAuth('bearer')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@RequireRoles(PlatformRole.ADMIN, PlatformRole.SUPER_ADMIN)
 @Controller('students')
 export class StudentsController {
   constructor(private readonly studentsService: StudentsService) {}

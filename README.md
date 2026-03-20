@@ -92,16 +92,32 @@ pnpm prisma:migrate:deploy
 
 该结构已为三端能力预留了完整关系与索引，可直接进入 API 开发。
 
-## Auth API（邮箱密码）
+## Auth API
+
+公开身份只允许注册/补充为 `TEACHER`、`GUARDIAN`、`STUDENT`。`ADMIN/SUPER_ADMIN` 只能使用已有账号登录。
 
 - `POST /auth/register`
-  - body: `{ "name"?: string, "email": string, "password": string }`
+- `POST /auth/email/register`
+  - body: `{ "name"?: string, "email": string, "password": string, "requestedRole": "TEACHER" | "GUARDIAN" | "STUDENT" }`
 - `POST /auth/login`
-  - body: `{ "email": string, "password": string }`
+- `POST /auth/email/login`
+  - body: `{ "email": string, "password": string, "requestedRole"?: "TEACHER" | "GUARDIAN" | "STUDENT" }`
+- `POST /auth/sms/request-code`
+  - body: `{ "phone": "13800138000" }`
+- `POST /auth/sms/verify`
+  - body: `{ "phone": "13800138000", "code": "123456", "requestedRole"?: "TEACHER" | "GUARDIAN" | "STUDENT", "name"?: "王女士" }`
+- `POST /auth/wechat/app-login`
+  - body: `{ "code": "<wechat-app-oauth-code>", "requestedRole"?: "TEACHER" | "GUARDIAN" | "STUDENT" }`
+- `POST /auth/role/switch`
+  - header: `Authorization: Bearer <accessToken>`
+  - body: `{ "role": "TEACHER" | "GUARDIAN" | "STUDENT" | "ADMIN" | "SUPER_ADMIN" }`
+- `POST /auth/bind/phone/request`
+- `POST /auth/bind/phone/confirm`
+- `POST /auth/bind/email-password`
 - `GET /auth/me`
   - header: `Authorization: Bearer <accessToken>`
 
-`register/login` 返回：
+登录接口返回：
 
 ```json
 {
@@ -109,7 +125,35 @@ pnpm prisma:migrate:deploy
   "user": {
     "id": "user_id",
     "name": "User Name",
-    "email": "user@example.com"
+    "email": "user@example.com",
+    "phone": "13800138000",
+    "avatarUrl": "https://...",
+    "roles": ["GUARDIAN", "TEACHER"],
+    "availableRoles": ["GUARDIAN", "TEACHER"],
+    "primaryRole": "GUARDIAN",
+    "activeRole": "GUARDIAN",
+    "loginMethods": ["SMS", "WECHAT_APP"],
+    "profileIds": {
+      "teacherProfileId": "teacher_profile_id",
+      "guardianProfileId": "guardian_profile_id",
+      "studentProfileId": null
+    },
+    "onboardingState": {
+      "teacher": {
+        "profileExists": true,
+        "onboardingCompleted": false,
+        "verificationStatus": "PENDING",
+        "canAcceptBookings": false
+      },
+      "guardian": {
+        "profileExists": true,
+        "phoneVerified": true
+      },
+      "student": {
+        "profileExists": false,
+        "phoneVerified": true
+      }
+    }
   }
 }
 ```

@@ -32,8 +32,13 @@ export class GuardianStudentSummaryDto {
   @ApiProperty({ description: '学生名称。', example: '小王' })
   displayName!: string;
 
-  @ApiProperty({ description: '年级阶段。', example: 'PRIMARY' })
-  gradeLevel!: string;
+  @ApiProperty({
+    description: '年级阶段。',
+    example: 'PRIMARY',
+    nullable: true,
+    required: false,
+  })
+  gradeLevel!: string | null;
 
   @ApiProperty({ description: '与家长关系。', example: 'MOTHER' })
   relation!: string;

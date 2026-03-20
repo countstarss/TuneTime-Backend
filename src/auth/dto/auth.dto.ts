@@ -1,0 +1,393 @@
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  PlatformRole,
+  TeacherEmploymentType,
+  TeacherVerificationStatus,
+  GradeLevel,
+} from '@prisma/client';
+import { Type } from 'class-transformer';
+import {
+  IsBoolean,
+  IsDateString,
+  IsEmail,
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Length,
+  MaxLength,
+  Min,
+} from 'class-validator';
+
+export class EmailRegisterDto {
+  @ApiPropertyOptional({ description: '用户昵称。', example: '王女士' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  name?: string;
+
+  @ApiProperty({ description: '邮箱地址。', example: 'user@example.com' })
+  @IsEmail()
+  email!: string;
+
+  @ApiProperty({ description: '密码。', example: 'TuneTime123!' })
+  @IsString()
+  password!: string;
+
+  @ApiProperty({
+    description: '本次注册的身份。',
+    enum: [PlatformRole.TEACHER, PlatformRole.GUARDIAN, PlatformRole.STUDENT],
+    example: PlatformRole.GUARDIAN,
+  })
+  @IsEnum(PlatformRole)
+  requestedRole!: PlatformRole;
+}
+
+export class EmailLoginDto {
+  @ApiProperty({ description: '邮箱地址。', example: 'user@example.com' })
+  @IsEmail()
+  email!: string;
+
+  @ApiProperty({ description: '密码。', example: 'TuneTime123!' })
+  @IsString()
+  password!: string;
+
+  @ApiPropertyOptional({
+    description: '希望切换到的身份。',
+    enum: [PlatformRole.TEACHER, PlatformRole.GUARDIAN, PlatformRole.STUDENT],
+    example: PlatformRole.TEACHER,
+  })
+  @IsOptional()
+  @IsEnum(PlatformRole)
+  requestedRole?: PlatformRole;
+}
+
+export class SmsRequestCodeDto {
+  @ApiProperty({ description: '手机号。', example: '13800138000' })
+  @IsString()
+  phone!: string;
+}
+
+export class SmsVerifyDto {
+  @ApiProperty({ description: '手机号。', example: '13800138000' })
+  @IsString()
+  phone!: string;
+
+  @ApiProperty({ description: '验证码。', example: '123456' })
+  @IsString()
+  @Length(4, 8)
+  code!: string;
+
+  @ApiPropertyOptional({
+    description: '首次登录或补充身份时希望进入的身份。',
+    enum: [PlatformRole.TEACHER, PlatformRole.GUARDIAN, PlatformRole.STUDENT],
+    example: PlatformRole.GUARDIAN,
+  })
+  @IsOptional()
+  @IsEnum(PlatformRole)
+  requestedRole?: PlatformRole;
+
+  @ApiPropertyOptional({ description: '昵称。', example: '王女士' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  name?: string;
+}
+
+export class WechatAppLoginDto {
+  @ApiProperty({ description: '微信 App 授权 code。' })
+  @IsString()
+  code!: string;
+
+  @ApiPropertyOptional({
+    description: '首次登录或补充身份时希望进入的身份。',
+    enum: [PlatformRole.TEACHER, PlatformRole.GUARDIAN, PlatformRole.STUDENT],
+    example: PlatformRole.TEACHER,
+  })
+  @IsOptional()
+  @IsEnum(PlatformRole)
+  requestedRole?: PlatformRole;
+}
+
+export class RoleSwitchDto {
+  @ApiProperty({ description: '切换到的身份。', enum: PlatformRole })
+  @IsEnum(PlatformRole)
+  role!: PlatformRole;
+}
+
+export class BindPhoneRequestDto {
+  @ApiProperty({ description: '待绑定手机号。', example: '13800138000' })
+  @IsString()
+  phone!: string;
+}
+
+export class BindPhoneConfirmDto {
+  @ApiProperty({ description: '待绑定手机号。', example: '13800138000' })
+  @IsString()
+  phone!: string;
+
+  @ApiProperty({ description: '验证码。', example: '123456' })
+  @IsString()
+  @Length(4, 8)
+  code!: string;
+}
+
+export class BindEmailPasswordDto {
+  @ApiProperty({ description: '待绑定邮箱。', example: 'user@example.com' })
+  @IsEmail()
+  email!: string;
+
+  @ApiProperty({ description: '待设置密码。', example: 'TuneTime123!' })
+  @IsString()
+  password!: string;
+}
+
+export class AuthProfileIdsDto {
+  @ApiPropertyOptional({ nullable: true })
+  teacherProfileId!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  guardianProfileId!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  studentProfileId!: string | null;
+}
+
+export class TeacherOnboardingStateDto {
+  @ApiProperty()
+  profileExists!: boolean;
+
+  @ApiProperty()
+  onboardingCompleted!: boolean;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    enum: TeacherVerificationStatus,
+  })
+  verificationStatus!: TeacherVerificationStatus | null;
+
+  @ApiProperty()
+  canAcceptBookings!: boolean;
+}
+
+export class ConsumerOnboardingStateDto {
+  @ApiProperty()
+  profileExists!: boolean;
+
+  @ApiProperty()
+  phoneVerified!: boolean;
+}
+
+export class AuthOnboardingStateDto {
+  @ApiProperty({ type: TeacherOnboardingStateDto })
+  teacher!: TeacherOnboardingStateDto;
+
+  @ApiProperty({ type: ConsumerOnboardingStateDto })
+  guardian!: ConsumerOnboardingStateDto;
+
+  @ApiProperty({ type: ConsumerOnboardingStateDto })
+  student!: ConsumerOnboardingStateDto;
+}
+
+export class AuthUserDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  name!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  email!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  phone!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  avatarUrl!: string | null;
+
+  @ApiProperty({ enum: PlatformRole, isArray: true })
+  roles!: PlatformRole[];
+
+  @ApiProperty({ enum: PlatformRole, isArray: true })
+  availableRoles!: PlatformRole[];
+
+  @ApiPropertyOptional({ nullable: true, enum: PlatformRole })
+  primaryRole!: PlatformRole | null;
+
+  @ApiPropertyOptional({ nullable: true, enum: PlatformRole })
+  activeRole!: PlatformRole | null;
+
+  @ApiProperty({
+    isArray: true,
+    enum: ['EMAIL_PASSWORD', 'SMS', 'WECHAT_APP'],
+  })
+  loginMethods!: string[];
+
+  @ApiProperty({ type: AuthProfileIdsDto })
+  profileIds!: AuthProfileIdsDto;
+
+  @ApiProperty({ type: AuthOnboardingStateDto })
+  onboardingState!: AuthOnboardingStateDto;
+}
+
+export class AuthResponseDto {
+  @ApiProperty()
+  accessToken!: string;
+
+  @ApiProperty({ type: AuthUserDto })
+  user!: AuthUserDto;
+}
+
+export class AuthCodeDispatchResponseDto {
+  @ApiProperty()
+  success!: boolean;
+
+  @ApiProperty()
+  expiresInSeconds!: number;
+
+  @ApiProperty()
+  cooldownSeconds!: number;
+}
+
+export class SelfTeacherProfileUpdateDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  displayName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  bio?: string;
+
+  @ApiPropertyOptional({ enum: TeacherEmploymentType, nullable: true })
+  @IsOptional()
+  @IsEnum(TeacherEmploymentType)
+  employmentType?: TeacherEmploymentType;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  baseHourlyRate?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  serviceRadiusKm?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  acceptTrial?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  maxTravelMinutes?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  timezone?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  agreementAcceptedAt?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  agreementVersion?: string;
+
+  @ApiPropertyOptional({
+    description: '是否标记老师 onboarding 已完成。',
+  })
+  @IsOptional()
+  @IsBoolean()
+  onboardingCompleted?: boolean;
+}
+
+export class SelfGuardianProfileUpdateDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  displayName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  phone?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  emergencyContactName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  emergencyContactPhone?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(8, 36)
+  defaultServiceAddressId?: string;
+}
+
+export class SelfStudentProfileUpdateDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  displayName?: string;
+
+  @ApiPropertyOptional({ enum: GradeLevel, nullable: true })
+  @IsOptional()
+  @IsEnum(GradeLevel)
+  gradeLevel?: GradeLevel;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  dateOfBirth?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  schoolName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  learningGoals?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  specialNeeds?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  timezone?: string;
+}

@@ -52,8 +52,13 @@ export class LessonStudentSummaryDto {
   @ApiProperty({ description: '学生昵称。', example: '小宇' })
   displayName!: string;
 
-  @ApiProperty({ description: '年级。', example: 'PRIMARY' })
-  gradeLevel!: string;
+  @ApiProperty({
+    description: '年级。',
+    example: 'PRIMARY',
+    nullable: true,
+    required: false,
+  })
+  gradeLevel!: string | null;
 }
 
 export class LessonResponseDto {

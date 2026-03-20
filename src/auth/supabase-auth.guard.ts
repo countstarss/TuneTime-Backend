@@ -4,12 +4,14 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+import { PlatformRole, UserStatus } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
 import { verifyJwt } from './verify-jwt';
-import { AuthService } from './auth.service';
+import { AuthenticatedUserContext } from './auth.types';
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
-  constructor(private authService: AuthService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest();
@@ -31,25 +33,47 @@ export class JwtAuthGuard implements CanActivate {
 
     const rawPayload = payload as Record<string, unknown>;
     const userId = typeof payload.sub === 'string' ? payload.sub : undefined;
-    const email = typeof payload.email === 'string' ? payload.email : undefined;
-    const name = typeof payload.name === 'string' ? payload.name : undefined;
-    const image =
-      typeof rawPayload.picture === 'string'
-        ? rawPayload.picture
-        : typeof rawPayload.image === 'string'
-          ? rawPayload.image
-          : undefined;
+    const requestedActiveRole =
+      typeof rawPayload.activeRole === 'string'
+        ? (rawPayload.activeRole as PlatformRole)
+        : null;
+
+    if (!userId) {
+      throw new UnauthorizedException('Invalid token payload');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        status: true,
+        roles: {
+          orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+          select: { role: true },
+        },
+      },
+    });
+
+    if (!user || user.status !== UserStatus.ACTIVE) {
+      throw new UnauthorizedException(
+        'Authenticated user not found or inactive',
+      );
+    }
+
+    const roles = user.roles.map((item) => item.role);
+    const activeRole =
+      requestedActiveRole && roles.includes(requestedActiveRole)
+        ? requestedActiveRole
+        : (roles[0] ?? null);
 
     req.user = payload;
-
-    if (userId || email) {
-      await this.authService.syncUser({
-        userId,
-        email,
-        name,
-        image,
-      });
-    }
+    req.auth = {
+      userId,
+      roles,
+      activeRole,
+      status: user.status,
+      tokenPayload: payload,
+    } satisfies AuthenticatedUserContext;
 
     return true;
   }

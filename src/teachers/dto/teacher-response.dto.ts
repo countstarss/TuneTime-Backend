@@ -179,8 +179,13 @@ export class TeacherResponseDto {
   })
   bio!: string | null;
 
-  @ApiProperty({ description: '雇佣类型。', example: 'PART_TIME' })
-  employmentType!: string;
+  @ApiProperty({
+    description: '雇佣类型。',
+    example: 'PART_TIME',
+    nullable: true,
+    required: false,
+  })
+  employmentType!: string | null;
 
   @ApiProperty({ description: '审核状态。', example: 'APPROVED' })
   verificationStatus!: string;

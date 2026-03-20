@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBody,
+  ApiBearerAuth,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -19,6 +20,11 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { UseGuards } from '@nestjs/common';
+import { PlatformRole } from '@prisma/client';
+import { JwtAuthGuard } from '../auth/supabase-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { RequireRoles } from '../auth/require-roles.decorator';
 import { CreateTeacherDto } from './dto/create-teacher.dto';
 import { ListTeachersQueryDto } from './dto/list-teachers-query.dto';
 import {
@@ -37,6 +43,9 @@ import { UpdateTeacherVerificationDto } from './dto/update-teacher-verification.
 import { TeachersService } from './teachers.service';
 
 @ApiTags('老师管理')
+@ApiBearerAuth('bearer')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@RequireRoles(PlatformRole.ADMIN, PlatformRole.SUPER_ADMIN)
 @Controller('teachers')
 export class TeachersController {
   constructor(private readonly teachersService: TeachersService) {}

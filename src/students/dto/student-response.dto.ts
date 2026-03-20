@@ -42,8 +42,13 @@ export class StudentResponseDto {
   @ApiProperty({ description: '学生姓名。', example: '小王' })
   displayName!: string;
 
-  @ApiProperty({ description: '年级阶段。', example: 'PRIMARY' })
-  gradeLevel!: string;
+  @ApiProperty({
+    description: '年级阶段。',
+    example: 'PRIMARY',
+    nullable: true,
+    required: false,
+  })
+  gradeLevel!: string | null;
 
   @ApiProperty({
     description: '出生日期。',

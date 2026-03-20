@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBody,
+  ApiBearerAuth,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -18,6 +19,11 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { UseGuards } from '@nestjs/common';
+import { PlatformRole } from '@prisma/client';
+import { JwtAuthGuard } from '../auth/supabase-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { RequireRoles } from '../auth/require-roles.decorator';
 import { CreateGuardianDto } from './dto/create-guardian.dto';
 import {
   DeleteGuardianResponseDto,
@@ -31,6 +37,9 @@ import { UpdateGuardianDto } from './dto/update-guardian.dto';
 import { GuardiansService } from './guardians.service';
 
 @ApiTags('家长管理')
+@ApiBearerAuth('bearer')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@RequireRoles(PlatformRole.ADMIN, PlatformRole.SUPER_ADMIN)
 @Controller('guardians')
 export class GuardiansController {
   constructor(private readonly guardiansService: GuardiansService) {}

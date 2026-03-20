@@ -1,313 +1,470 @@
 import {
-  ConflictException,
+  BadRequestException,
+  ForbiddenException,
   Injectable,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { PlatformRole } from '@prisma/client';
+import {
+  PlatformRole,
+  TeacherEmploymentType,
+  TeacherVerificationStatus,
+  UserStatus,
+} from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { hashPassword, verifyPassword } from './password.util';
+import {
+  AuthenticatedUserContext,
+  AuthResponse,
+  AuthUserProfile,
+} from './auth.types';
 import { signAccessToken } from './token.util';
-
-type SyncUserInput = {
-  userId?: string;
-  email?: string;
-  name?: string;
-  image?: string;
-};
-
-/** 与 schema 中 UserStatus 枚举一致，避免依赖 @prisma/client 解析 */
-const USER_STATUS_ACTIVE = 'ACTIVE' as const;
-const DEFAULT_ROLE = 'STUDENT' as const;
-
-type RegisterInput = {
-  name?: string;
-  email: string;
-  password: string;
-};
-
-type LoginInput = {
-  email: string;
-  password: string;
-};
-
-type PublicUser = {
-  id: string;
-  name: string | null;
-  email: string;
-  roles: PlatformRole[];
-};
-
-type AuthResponse = {
-  accessToken: string;
-  user: PublicUser;
-};
+import { PasswordAuthService } from './password-auth.service';
+import { SmsAuthService } from './sms-auth.service';
+import { WechatAuthService } from './wechat-auth.service';
+import { ProfileBootstrapService } from './profile-bootstrap.service';
+import { normalizePhone, sanitizeDisplayName } from './auth.utils';
 
 @Injectable()
 export class AuthService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly passwordAuthService: PasswordAuthService,
+    private readonly smsAuthService: SmsAuthService,
+    private readonly wechatAuthService: WechatAuthService,
+    private readonly profileBootstrapService: ProfileBootstrapService,
+  ) {}
 
-  /**
-   * 同步或创建用户到数据库
-   */
-  async syncUser(input: SyncUserInput) {
-    const { userId, email, name, image } = input;
-
-    if (!userId && !email) {
-      return null;
-    }
-
-    const commonUpdate = {
-      status: USER_STATUS_ACTIVE,
-      deletedAt: null,
-      ...(email ? { email } : {}),
-      ...(name ? { name } : {}),
-      ...(image ? { image } : {}),
-    };
-
-    const prisma = this.prisma as unknown as {
-      user: { upsert: (args: unknown) => Promise<unknown> };
-    };
-
-    if (userId) {
-      return prisma.user.upsert({
-        where: { id: userId },
-        create: {
-          id: userId,
-          email,
-          name,
-          image,
-        },
-        update: commonUpdate,
-      });
-    }
-
-    return prisma.user.upsert({
-      where: { email: email! },
-      create: {
-        email,
-        name,
-        image,
-      },
-      update: commonUpdate,
-    });
-  }
-
-  private normalizeEmail(email: string) {
-    return email.trim().toLowerCase();
-  }
-
-  private toPublicUser(user: {
-    id: string;
-    name: string | null;
-    email: string | null;
-    roles?: Array<{ role: PlatformRole }>;
-  }): PublicUser {
-    return {
-      id: user.id,
-      name: user.name,
-      email: user.email ?? '',
-      roles: user.roles?.map((item) => item.role) ?? [],
-    };
-  }
-
-  private async buildAuthResponse(user: {
-    id: string;
-    name: string | null;
-    email: string | null;
-  }): Promise<AuthResponse> {
-    if (!user.email) {
-      throw new UnauthorizedException('User email is missing');
-    }
-
-    const publicUser = await this.getProfileByUserId(user.id);
-    if (!publicUser) {
-      throw new UnauthorizedException('User profile not found');
-    }
-    const accessToken = await signAccessToken({
-      sub: publicUser.id,
-      email: publicUser.email,
-      name: publicUser.name ?? undefined,
-    });
-
-    return { accessToken, user: publicUser };
-  }
-
-  async registerWithPassword(input: RegisterInput): Promise<AuthResponse> {
-    const email = this.normalizeEmail(input.email);
-    const passwordHash = await hashPassword(input.password);
-
-    const prisma = this.prisma as unknown as {
-      $transaction: <T>(fn: (tx: unknown) => Promise<T>) => Promise<T>;
-      user: {
-        findUnique: (args: unknown) => Promise<{
-          id: string;
-          name: string | null;
-          email: string | null;
-          passwordCredential?: { id: string } | null;
-        } | null>;
-      };
-    };
-
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
-      include: { passwordCredential: true },
-    });
-
-    if (existingUser?.passwordCredential) {
-      throw new ConflictException('This email is already registered');
-    }
-
-    const user = await prisma.$transaction(async (txUnknown) => {
-      const tx = txUnknown as {
-        user: {
-          update: (args: unknown) => Promise<{
-            id: string;
-            name: string | null;
-            email: string | null;
-          }>;
-          create: (args: unknown) => Promise<{
-            id: string;
-            name: string | null;
-            email: string | null;
-          }>;
-        };
-        passwordCredential: {
-          create: (args: unknown) => Promise<unknown>;
-        };
-        userRole: {
-          upsert: (args: unknown) => Promise<unknown>;
-        };
-      };
-
-      if (existingUser) {
-        await tx.passwordCredential.create({
-          data: {
-            userId: existingUser.id,
-            passwordHash,
-          },
-        });
-
-        await tx.userRole.upsert({
-          where: {
-            userId_role: {
-              userId: existingUser.id,
-              role: DEFAULT_ROLE,
-            },
-          },
-          create: {
-            userId: existingUser.id,
-            role: DEFAULT_ROLE,
-            isPrimary: true,
-          },
-          update: {},
-        });
-
-        return tx.user.update({
-          where: { id: existingUser.id },
-          data: {
-            name: input.name?.trim() || existingUser.name,
-            status: USER_STATUS_ACTIVE,
-            deletedAt: null,
-          },
-          select: { id: true, name: true, email: true },
-        });
-      }
-
-      return tx.user.create({
-        data: {
-          name: input.name?.trim() || null,
-          email,
-          status: USER_STATUS_ACTIVE,
-          roles: {
-            create: {
-              role: DEFAULT_ROLE,
-              isPrimary: true,
-            },
-          },
-          passwordCredential: {
-            create: {
-              passwordHash,
-            },
-          },
-        },
-        select: { id: true, name: true, email: true },
-      });
-    });
-
-    return this.buildAuthResponse(user);
-  }
-
-  async loginWithPassword(input: LoginInput): Promise<AuthResponse> {
-    const email = this.normalizeEmail(input.email);
-
-    const prisma = this.prisma as unknown as {
-      user: {
-        findUnique: (args: unknown) => Promise<{
-          id: string;
-          name: string | null;
-          email: string | null;
-          status: string;
-          passwordCredential: { passwordHash: string } | null;
-        } | null>;
-      };
-    };
-
-    const user = await prisma.user.findUnique({
-      where: { email },
-      include: {
-        passwordCredential: {
-          select: { passwordHash: true },
-        },
-      },
-    });
-
-    if (!user?.passwordCredential) {
-      throw new UnauthorizedException('Invalid email or password');
-    }
-
-    const isValid = await verifyPassword(
-      input.password,
-      user.passwordCredential.passwordHash,
-    );
-
-    if (!isValid || user.status !== USER_STATUS_ACTIVE) {
-      throw new UnauthorizedException('Invalid email or password');
-    }
-
-    return this.buildAuthResponse(user);
-  }
-
-  async getProfileByUserId(userId: string): Promise<PublicUser | null> {
-    const prisma = this.prisma as unknown as {
-      user: {
-        findUnique: (args: unknown) => Promise<{
-          id: string;
-          name: string | null;
-          email: string | null;
-          status: string;
-          roles: Array<{ role: PlatformRole }>;
-        } | null>;
-      };
-    };
-
-    const user = await prisma.user.findUnique({
+  private async getProfileProjection(userId: string) {
+    return this.prisma.user.findUnique({
       where: { id: userId },
       select: {
         id: true,
         name: true,
         email: true,
+        phone: true,
+        phoneVerifiedAt: true,
+        image: true,
         status: true,
+        passwordCredential: {
+          select: { id: true },
+        },
+        accounts: {
+          select: {
+            provider: true,
+          },
+        },
+        teacherProfile: {
+          select: {
+            id: true,
+            verificationStatus: true,
+            onboardingCompletedAt: true,
+          },
+        },
+        guardianProfile: {
+          select: {
+            id: true,
+          },
+        },
+        studentProfile: {
+          select: {
+            id: true,
+          },
+        },
         roles: {
           orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
-          select: { role: true },
+          select: { role: true, isPrimary: true },
         },
       },
     });
+  }
 
-    if (!user || user.status !== USER_STATUS_ACTIVE || !user.email) {
+  private buildAuthUserProfile(
+    user: NonNullable<Awaited<ReturnType<AuthService['getProfileProjection']>>>,
+    requestedActiveRole?: PlatformRole | null,
+  ): AuthUserProfile {
+    const roles = user.roles.map((item) => item.role);
+    const primaryRole =
+      user.roles.find((item) => item.isPrimary)?.role ?? roles[0] ?? null;
+    const activeRole =
+      requestedActiveRole && roles.includes(requestedActiveRole)
+        ? requestedActiveRole
+        : primaryRole;
+    const loginMethods = new Set<string>();
+
+    if (user.email && user.passwordCredential) {
+      loginMethods.add('EMAIL_PASSWORD');
+    }
+    if (user.phone && user.phoneVerifiedAt) {
+      loginMethods.add('SMS');
+    }
+    if (user.accounts.some((item) => item.provider === 'WECHAT_APP')) {
+      loginMethods.add('WECHAT_APP');
+    }
+
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      avatarUrl: user.image,
+      roles,
+      availableRoles: roles,
+      primaryRole,
+      activeRole,
+      loginMethods: Array.from(loginMethods) as AuthUserProfile['loginMethods'],
+      profileIds: {
+        teacherProfileId: user.teacherProfile?.id ?? null,
+        guardianProfileId: user.guardianProfile?.id ?? null,
+        studentProfileId: user.studentProfile?.id ?? null,
+      },
+      onboardingState: {
+        teacher: {
+          profileExists: !!user.teacherProfile,
+          onboardingCompleted: !!user.teacherProfile?.onboardingCompletedAt,
+          verificationStatus: user.teacherProfile?.verificationStatus ?? null,
+          canAcceptBookings:
+            !!user.teacherProfile?.onboardingCompletedAt &&
+            user.teacherProfile?.verificationStatus ===
+              TeacherVerificationStatus.APPROVED,
+        },
+        guardian: {
+          profileExists: !!user.guardianProfile,
+          phoneVerified: !!user.phoneVerifiedAt,
+        },
+        student: {
+          profileExists: !!user.studentProfile,
+          phoneVerified: !!user.phoneVerifiedAt,
+        },
+      },
+    };
+  }
+
+  async issueAuthResponse(
+    userId: string,
+    requestedActiveRole?: PlatformRole | null,
+  ): Promise<AuthResponse> {
+    const profile = await this.getProfileByUserId(userId, requestedActiveRole);
+    if (!profile) {
+      throw new UnauthorizedException('User profile not found');
+    }
+
+    const accessToken = await signAccessToken({
+      sub: profile.id,
+      email: profile.email ?? undefined,
+      name: profile.name ?? undefined,
+      activeRole: profile.activeRole ?? undefined,
+    });
+
+    return {
+      accessToken,
+      user: profile,
+    };
+  }
+
+  async registerWithPassword(input: {
+    name?: string;
+    email: string;
+    password: string;
+    requestedRole: PlatformRole;
+  }): Promise<AuthResponse> {
+    const result = await this.passwordAuthService.registerWithEmail(input);
+    return this.issueAuthResponse(result.userId, result.activeRole);
+  }
+
+  async loginWithPassword(input: {
+    email: string;
+    password: string;
+    requestedRole?: PlatformRole;
+  }): Promise<AuthResponse> {
+    const result = await this.passwordAuthService.loginWithEmail(input);
+    return this.issueAuthResponse(result.userId, result.activeRole);
+  }
+
+  async requestSmsCode(phone: string) {
+    return this.smsAuthService.requestLoginCode(phone);
+  }
+
+  async verifySmsCode(input: {
+    phone: string;
+    code: string;
+    requestedRole?: PlatformRole;
+    name?: string;
+  }): Promise<AuthResponse> {
+    const result = await this.smsAuthService.verifyLoginCode(input);
+    return this.issueAuthResponse(result.userId, result.activeRole);
+  }
+
+  async loginWithWechatApp(input: {
+    code: string;
+    requestedRole?: PlatformRole;
+  }): Promise<AuthResponse> {
+    const result = await this.wechatAuthService.loginWithAppCode(input);
+    return this.issueAuthResponse(result.userId, result.activeRole);
+  }
+
+  async requestPhoneBindCode(userId: string, phone: string) {
+    return this.smsAuthService.requestPhoneBindCode(userId, phone);
+  }
+
+  async confirmPhoneBind(
+    userId: string,
+    phone: string,
+    code: string,
+    preferredRole?: PlatformRole | null,
+  ): Promise<AuthResponse> {
+    const mergedUserId = await this.smsAuthService.confirmPhoneBind({
+      userId,
+      phone,
+      code,
+    });
+    return this.issueAuthResponse(mergedUserId, preferredRole);
+  }
+
+  async bindEmailPassword(
+    userId: string,
+    email: string,
+    password: string,
+    preferredRole?: PlatformRole | null,
+  ): Promise<AuthResponse> {
+    const mergedUserId = await this.passwordAuthService.bindEmailPassword({
+      userId,
+      email,
+      password,
+    });
+    return this.issueAuthResponse(mergedUserId, preferredRole);
+  }
+
+  async switchRole(userId: string, role: PlatformRole): Promise<AuthResponse> {
+    const profile = await this.getProfileByUserId(userId);
+    if (!profile) {
+      throw new UnauthorizedException('User profile not found');
+    }
+
+    if (!profile.roles.includes(role)) {
+      throw new ForbiddenException(
+        'Requested role is not assigned to this user',
+      );
+    }
+
+    await this.profileBootstrapService.setPrimaryRole(userId, role);
+    return this.issueAuthResponse(userId, role);
+  }
+
+  async getProfileByUserId(
+    userId: string,
+    requestedActiveRole?: PlatformRole | null,
+  ): Promise<AuthUserProfile | null> {
+    const user = await this.getProfileProjection(userId);
+
+    if (!user || user.status !== UserStatus.ACTIVE) {
       return null;
     }
 
-    return this.toPublicUser(user);
+    return this.buildAuthUserProfile(user, requestedActiveRole);
+  }
+
+  async getProfileForContext(
+    currentUser: AuthenticatedUserContext,
+  ): Promise<AuthUserProfile> {
+    const profile = await this.getProfileByUserId(
+      currentUser.userId,
+      currentUser.activeRole,
+    );
+
+    if (!profile) {
+      throw new UnauthorizedException('User profile not found');
+    }
+
+    return profile;
+  }
+
+  async updateSelfTeacherProfile(
+    userId: string,
+    dto: {
+      displayName?: string;
+      bio?: string;
+      employmentType?: TeacherEmploymentType;
+      baseHourlyRate?: number;
+      serviceRadiusKm?: number;
+      acceptTrial?: boolean;
+      maxTravelMinutes?: number;
+      timezone?: string;
+      agreementAcceptedAt?: string;
+      agreementVersion?: string;
+      onboardingCompleted?: boolean;
+    },
+  ) {
+    const teacher = await this.prisma.teacherProfile.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+
+    if (!teacher) {
+      throw new NotFoundException('Teacher profile not found');
+    }
+
+    await this.prisma.teacherProfile.update({
+      where: { userId },
+      data: {
+        ...(dto.displayName !== undefined
+          ? { displayName: sanitizeDisplayName(dto.displayName, '新老师') }
+          : {}),
+        ...(dto.bio !== undefined ? { bio: dto.bio?.trim() || null } : {}),
+        ...(dto.employmentType !== undefined
+          ? { employmentType: dto.employmentType as never }
+          : {}),
+        ...(dto.baseHourlyRate !== undefined
+          ? { baseHourlyRate: dto.baseHourlyRate }
+          : {}),
+        ...(dto.serviceRadiusKm !== undefined
+          ? { serviceRadiusKm: dto.serviceRadiusKm }
+          : {}),
+        ...(dto.acceptTrial !== undefined
+          ? { acceptTrial: dto.acceptTrial }
+          : {}),
+        ...(dto.maxTravelMinutes !== undefined
+          ? { maxTravelMinutes: dto.maxTravelMinutes }
+          : {}),
+        ...(dto.timezone !== undefined
+          ? { timezone: dto.timezone?.trim() || 'Asia/Shanghai' }
+          : {}),
+        ...(dto.agreementAcceptedAt !== undefined
+          ? {
+              agreementAcceptedAt: dto.agreementAcceptedAt
+                ? new Date(dto.agreementAcceptedAt)
+                : null,
+            }
+          : {}),
+        ...(dto.agreementVersion !== undefined
+          ? { agreementVersion: dto.agreementVersion?.trim() || null }
+          : {}),
+        ...(dto.onboardingCompleted !== undefined
+          ? {
+              onboardingCompletedAt: dto.onboardingCompleted
+                ? new Date()
+                : null,
+            }
+          : {}),
+      },
+    });
+
+    return this.issueAuthResponse(userId, PlatformRole.TEACHER);
+  }
+
+  async updateSelfGuardianProfile(
+    userId: string,
+    dto: {
+      displayName?: string;
+      phone?: string;
+      emergencyContactName?: string;
+      emergencyContactPhone?: string;
+      defaultServiceAddressId?: string;
+    },
+  ) {
+    const guardian = await this.prisma.guardianProfile.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+
+    if (!guardian) {
+      throw new NotFoundException('Guardian profile not found');
+    }
+
+    if (dto.defaultServiceAddressId) {
+      const address = await this.prisma.address.findUnique({
+        where: { id: dto.defaultServiceAddressId },
+        select: { id: true, userId: true },
+      });
+
+      if (!address || address.userId !== userId) {
+        throw new BadRequestException(
+          'defaultServiceAddressId must belong to the current user',
+        );
+      }
+    }
+
+    await this.prisma.guardianProfile.update({
+      where: { userId },
+      data: {
+        ...(dto.displayName !== undefined
+          ? { displayName: sanitizeDisplayName(dto.displayName, '新家长') }
+          : {}),
+        ...(dto.phone !== undefined
+          ? {
+              phone: dto.phone?.trim() ? normalizePhone(dto.phone) : null,
+            }
+          : {}),
+        ...(dto.emergencyContactName !== undefined
+          ? {
+              emergencyContactName: dto.emergencyContactName?.trim() || null,
+            }
+          : {}),
+        ...(dto.emergencyContactPhone !== undefined
+          ? {
+              emergencyContactPhone: dto.emergencyContactPhone?.trim()
+                ? normalizePhone(dto.emergencyContactPhone)
+                : null,
+            }
+          : {}),
+        ...(dto.defaultServiceAddressId !== undefined
+          ? { defaultServiceAddressId: dto.defaultServiceAddressId || null }
+          : {}),
+      },
+    });
+
+    return this.issueAuthResponse(userId, PlatformRole.GUARDIAN);
+  }
+
+  async updateSelfStudentProfile(
+    userId: string,
+    dto: {
+      displayName?: string;
+      gradeLevel?: unknown;
+      dateOfBirth?: string;
+      schoolName?: string;
+      learningGoals?: string;
+      specialNeeds?: string;
+      timezone?: string;
+    },
+  ) {
+    const student = await this.prisma.studentProfile.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+
+    if (!student) {
+      throw new NotFoundException('Student profile not found');
+    }
+
+    await this.prisma.studentProfile.update({
+      where: { userId },
+      data: {
+        ...(dto.displayName !== undefined
+          ? { displayName: sanitizeDisplayName(dto.displayName, '新学生') }
+          : {}),
+        ...(dto.gradeLevel !== undefined
+          ? { gradeLevel: dto.gradeLevel as never }
+          : {}),
+        ...(dto.dateOfBirth !== undefined
+          ? {
+              dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
+            }
+          : {}),
+        ...(dto.schoolName !== undefined
+          ? { schoolName: dto.schoolName?.trim() || null }
+          : {}),
+        ...(dto.learningGoals !== undefined
+          ? { learningGoals: dto.learningGoals?.trim() || null }
+          : {}),
+        ...(dto.specialNeeds !== undefined
+          ? { specialNeeds: dto.specialNeeds?.trim() || null }
+          : {}),
+        ...(dto.timezone !== undefined
+          ? { timezone: dto.timezone?.trim() || 'Asia/Shanghai' }
+          : {}),
+      },
+    });
+
+    return this.issueAuthResponse(userId, PlatformRole.STUDENT);
   }
 }

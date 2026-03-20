@@ -35,7 +35,7 @@ type BookingWithRelations = Booking & {
     id: string;
     userId: string | null;
     displayName: string;
-    gradeLevel: string;
+    gradeLevel: string | null;
   };
   guardianProfile: {
     id: string;
@@ -75,7 +75,7 @@ type BookingContext = {
     id: string;
     userId: string | null;
     displayName: string;
-    gradeLevel: string;
+    gradeLevel: string | null;
   };
   guardianProfile: {
     id: string;

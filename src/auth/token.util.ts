@@ -1,4 +1,5 @@
 import type { JWTPayload } from 'jose';
+import { PlatformRole } from '@prisma/client';
 
 type JoseModule = typeof import('jose');
 let joseModulePromise: Promise<JoseModule> | null = null;
@@ -13,8 +14,9 @@ async function loadJose() {
 
 export type AppJwtPayload = JWTPayload & {
   sub: string;
-  email: string;
+  email?: string;
   name?: string;
+  activeRole?: PlatformRole;
 };
 
 export async function signAccessToken(payload: AppJwtPayload): Promise<string> {

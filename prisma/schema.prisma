@@ -20,6 +20,18 @@ enum UserStatus {
   DELETED
 }
 
+enum AuthCodeChannel {
+  SMS
+  EMAIL
+}
+
+enum AuthCodePurpose {
+  LOGIN_OR_REGISTER
+  PHONE_BIND
+  EMAIL_VERIFY
+  PASSWORD_RESET
+}
+
 enum TeacherEmploymentType {
   FULL_TIME
   PART_TIME
@@ -255,20 +267,22 @@ enum CrmActionRiskLevel {
 }
 
 model User {
-  id            String     @id @default(cuid())
-  name          String?
-  email         String?    @unique
-  emailVerified DateTime?  @map("email_verified")
-  image         String?
-  phone         String?    @unique
-  status        UserStatus @default(ACTIVE)
-  timezone      String     @default("Asia/Shanghai")
-  locale        String     @default("zh-CN")
-  deletedAt     DateTime?  @map("deleted_at")
-  createdAt     DateTime   @default(now()) @map("created_at")
-  updatedAt     DateTime   @updatedAt @map("updated_at")
+  id              String     @id @default(cuid())
+  name            String?
+  email           String?    @unique
+  emailVerified   DateTime?  @map("email_verified")
+  image           String?
+  phone           String?    @unique
+  phoneVerifiedAt DateTime?  @map("phone_verified_at")
+  status          UserStatus @default(ACTIVE)
+  timezone        String     @default("Asia/Shanghai")
+  locale          String     @default("zh-CN")
+  deletedAt       DateTime?  @map("deleted_at")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
 
   accounts                       Account[]
+  authVerificationCodes          AuthVerificationCode[]
   passwordCredential             PasswordCredential?
   sessions                       Session[]
   authenticators                 Authenticator[]
@@ -302,24 +316,53 @@ model PasswordCredential {
 }
 
 model Account {
-  id                String  @id @default(cuid())
-  userId            String  @map("user_id")
+  id                String    @id @default(cuid())
+  userId            String    @map("user_id")
   type              String
   provider          String
-  providerAccountId String  @map("provider_account_id")
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  providerAccountId String    @map("provider_account_id")
+  providerAppId     String?   @map("provider_app_id")
+  unionId           String?   @map("union_id")
+  openId            String?   @map("open_id")
+  refresh_token     String?   @db.Text
+  access_token      String?   @db.Text
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String?   @db.Text
   session_state     String?
+  profileRaw        Json?     @map("profile_raw")
+  lastLoginAt       DateTime? @map("last_login_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
   @@index([userId])
+  @@index([provider, unionId])
+  @@index([provider, openId])
   @@map("accounts")
+}
+
+model AuthVerificationCode {
+  id           String          @id @default(cuid())
+  userId       String?         @map("user_id")
+  channel      AuthCodeChannel
+  purpose      AuthCodePurpose
+  target       String
+  codeHash     String          @map("code_hash")
+  expiresAt    DateTime        @map("expires_at")
+  consumedAt   DateTime?       @map("consumed_at")
+  attemptCount Int             @default(0) @map("attempt_count")
+  sentAt       DateTime        @default(now()) @map("sent_at")
+  createdAt    DateTime        @default(now()) @map("created_at")
+  updatedAt    DateTime        @updatedAt @map("updated_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([channel, purpose, target, sentAt])
+  @@index([target, consumedAt, expiresAt])
+  @@index([userId, purpose])
+  @@map("auth_verification_codes")
 }
 
 model Session {
@@ -396,7 +439,7 @@ model TeacherProfile {
   userId                String                    @unique @map("user_id")
   displayName           String                    @map("display_name")
   bio                   String?
-  employmentType        TeacherEmploymentType     @map("employment_type")
+  employmentType        TeacherEmploymentType?    @map("employment_type")
   verificationStatus    TeacherVerificationStatus @default(PENDING) @map("verification_status")
   baseHourlyRate        Decimal                   @default(0) @map("base_hourly_rate") @db.Decimal(10, 2)
   serviceRadiusKm       Int                       @default(10) @map("service_radius_km")
@@ -531,17 +574,17 @@ model TeacherCredential {
 }
 
 model StudentProfile {
-  id            String     @id @default(cuid())
-  userId        String?    @unique @map("user_id")
-  displayName   String     @map("display_name")
-  gradeLevel    GradeLevel @map("grade_level")
-  dateOfBirth   DateTime?  @map("date_of_birth") @db.Date
-  schoolName    String?    @map("school_name")
-  learningGoals String?    @map("learning_goals")
-  specialNeeds  String?    @map("special_needs")
-  timezone      String     @default("Asia/Shanghai")
-  createdAt     DateTime   @default(now()) @map("created_at")
-  updatedAt     DateTime   @updatedAt @map("updated_at")
+  id            String      @id @default(cuid())
+  userId        String?     @unique @map("user_id")
+  displayName   String      @map("display_name")
+  gradeLevel    GradeLevel? @map("grade_level")
+  dateOfBirth   DateTime?   @map("date_of_birth") @db.Date
+  schoolName    String?     @map("school_name")
+  learningGoals String?     @map("learning_goals")
+  specialNeeds  String?     @map("special_needs")
+  timezone      String      @default("Asia/Shanghai")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
 
   user         User?             @relation(fields: [userId], references: [id], onDelete: Cascade)
   guardians    StudentGuardian[]
