@@ -7,6 +7,7 @@ import {
 } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
+  IsArray,
   IsBoolean,
   IsDateString,
   IsEmail,
@@ -17,6 +18,7 @@ import {
   Length,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
 
 export class EmailRegisterDto {
@@ -190,6 +192,18 @@ export class TeacherOnboardingStateDto {
   @ApiProperty()
   onboardingCompleted!: boolean;
 
+  @ApiProperty()
+  completionPercent!: number;
+
+  @ApiProperty({ type: String, isArray: true })
+  missingRequiredItems!: string[];
+
+  @ApiProperty({ type: String, isArray: true })
+  missingOptionalItems!: string[];
+
+  @ApiProperty()
+  realNameVerified!: boolean;
+
   @ApiPropertyOptional({
     nullable: true,
     enum: TeacherVerificationStatus,
@@ -205,15 +219,41 @@ export class ConsumerOnboardingStateDto {
   profileExists!: boolean;
 
   @ApiProperty()
+  onboardingCompleted!: boolean;
+
+  @ApiProperty()
+  completionPercent!: number;
+
+  @ApiProperty()
   phoneVerified!: boolean;
+
+  @ApiProperty()
+  realNameVerified!: boolean;
+
+  @ApiProperty({ type: String, isArray: true })
+  missingRequiredItems!: string[];
+
+  @ApiProperty({ type: String, isArray: true })
+  missingOptionalItems!: string[];
+
+  @ApiProperty()
+  canBookLessons!: boolean;
+}
+
+export class GuardianOnboardingStateDto extends ConsumerOnboardingStateDto {
+  @ApiProperty()
+  hasLinkedStudent!: boolean;
+
+  @ApiProperty()
+  hasDefaultAddress!: boolean;
 }
 
 export class AuthOnboardingStateDto {
   @ApiProperty({ type: TeacherOnboardingStateDto })
   teacher!: TeacherOnboardingStateDto;
 
-  @ApiProperty({ type: ConsumerOnboardingStateDto })
-  guardian!: ConsumerOnboardingStateDto;
+  @ApiProperty({ type: GuardianOnboardingStateDto })
+  guardian!: GuardianOnboardingStateDto;
 
   @ApiProperty({ type: ConsumerOnboardingStateDto })
   student!: ConsumerOnboardingStateDto;
@@ -237,6 +277,12 @@ export class AuthUserDto {
 
   @ApiProperty()
   hasPassword!: boolean;
+
+  @ApiProperty()
+  realNameVerified!: boolean;
+
+  @ApiPropertyOptional({ nullable: true })
+  realNameVerifiedAt!: Date | null;
 
   @ApiProperty({ enum: PlatformRole, isArray: true })
   roles!: PlatformRole[];
@@ -351,6 +397,79 @@ export class SelfTeacherProfileUpdateDto {
   onboardingCompleted?: boolean;
 }
 
+export class TeacherOnboardingSubjectDto {
+  @ApiProperty()
+  @IsString()
+  @Length(8, 36)
+  subjectId!: string;
+
+  @ApiProperty()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  hourlyRate!: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  trialRate?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  experienceYears?: number;
+}
+
+export class TeacherOnboardingServiceAreaDto {
+  @ApiProperty()
+  @IsString()
+  @MaxLength(64)
+  province!: string;
+
+  @ApiProperty()
+  @IsString()
+  @MaxLength(64)
+  city!: string;
+
+  @ApiProperty()
+  @IsString()
+  @MaxLength(64)
+  district!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  radiusKm?: number;
+}
+
+export class SelfTeacherOnboardingUpdateDto extends SelfTeacherProfileUpdateDto {
+  @ApiPropertyOptional({
+    type: TeacherOnboardingSubjectDto,
+    isArray: true,
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TeacherOnboardingSubjectDto)
+  subjects?: TeacherOnboardingSubjectDto[];
+
+  @ApiPropertyOptional({
+    type: TeacherOnboardingServiceAreaDto,
+    isArray: true,
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TeacherOnboardingServiceAreaDto)
+  serviceAreas?: TeacherOnboardingServiceAreaDto[];
+}
+
 export class SelfGuardianProfileUpdateDto {
   @ApiPropertyOptional()
   @IsOptional()
@@ -381,6 +500,122 @@ export class SelfGuardianProfileUpdateDto {
   @IsString()
   @Length(8, 36)
   defaultServiceAddressId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  onboardingCompleted?: boolean;
+}
+
+export class GuardianOnboardingStudentDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(8, 36)
+  id?: string;
+
+  @ApiProperty()
+  @IsString()
+  @MaxLength(64)
+  displayName!: string;
+
+  @ApiProperty({ enum: GradeLevel })
+  @IsEnum(GradeLevel)
+  gradeLevel!: GradeLevel;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  dateOfBirth?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  schoolName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  learningGoals?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  specialNeeds?: string;
+}
+
+export class GuardianOnboardingAddressDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(8, 36)
+  id?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  label?: string;
+
+  @ApiProperty()
+  @IsString()
+  @MaxLength(64)
+  contactName!: string;
+
+  @ApiProperty()
+  @IsString()
+  @MaxLength(32)
+  contactPhone!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(8)
+  country?: string;
+
+  @ApiProperty()
+  @IsString()
+  @MaxLength(64)
+  province!: string;
+
+  @ApiProperty()
+  @IsString()
+  @MaxLength(64)
+  city!: string;
+
+  @ApiProperty()
+  @IsString()
+  @MaxLength(64)
+  district!: string;
+
+  @ApiProperty()
+  @IsString()
+  @MaxLength(255)
+  street!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  building?: string;
+}
+
+export class SelfGuardianOnboardingUpdateDto
+  extends SelfGuardianProfileUpdateDto {
+  @ApiPropertyOptional({ type: GuardianOnboardingStudentDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => GuardianOnboardingStudentDto)
+  student?: GuardianOnboardingStudentDto;
+
+  @ApiPropertyOptional({ type: GuardianOnboardingAddressDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => GuardianOnboardingAddressDto)
+  defaultServiceAddress?: GuardianOnboardingAddressDto;
 }
 
 export class SelfStudentProfileUpdateDto {
@@ -423,4 +658,59 @@ export class SelfStudentProfileUpdateDto {
   @IsString()
   @MaxLength(64)
   timezone?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  onboardingCompleted?: boolean;
+}
+
+export class SelfStudentOnboardingUpdateDto extends SelfStudentProfileUpdateDto {}
+
+export class RealNameVerificationSessionRequestDto {
+  @ApiPropertyOptional({
+    description: '实名核身完成后的回跳地址。',
+    example: 'tunetime://real-name/callback',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  redirectUrl?: string;
+}
+
+export class RealNameVerificationSessionDto {
+  @ApiProperty()
+  sessionId!: string;
+
+  @ApiProperty()
+  provider!: string;
+
+  @ApiProperty()
+  status!: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  startUrl!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  expiresAt!: Date | null;
+
+  @ApiProperty()
+  mockMode!: boolean;
+}
+
+export class CompleteMockRealNameVerificationDto {
+  @ApiProperty()
+  @IsString()
+  @Length(8, 36)
+  sessionId!: string;
+
+  @ApiProperty()
+  @IsString()
+  @MaxLength(64)
+  fullName!: string;
+
+  @ApiProperty()
+  @IsString()
+  @MaxLength(32)
+  idNumber!: string;
 }

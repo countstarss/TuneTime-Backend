@@ -25,16 +25,34 @@ export type AuthOnboardingState = {
   teacher: {
     profileExists: boolean;
     onboardingCompleted: boolean;
+    completionPercent: number;
+    missingRequiredItems: string[];
+    missingOptionalItems: string[];
+    realNameVerified: boolean;
     verificationStatus: TeacherVerificationStatus | null;
     canAcceptBookings: boolean;
   };
   guardian: {
     profileExists: boolean;
+    onboardingCompleted: boolean;
+    completionPercent: number;
     phoneVerified: boolean;
+    realNameVerified: boolean;
+    hasLinkedStudent: boolean;
+    hasDefaultAddress: boolean;
+    missingRequiredItems: string[];
+    missingOptionalItems: string[];
+    canBookLessons: boolean;
   };
   student: {
     profileExists: boolean;
+    onboardingCompleted: boolean;
+    completionPercent: number;
     phoneVerified: boolean;
+    realNameVerified: boolean;
+    missingRequiredItems: string[];
+    missingOptionalItems: string[];
+    canBookLessons: boolean;
   };
 };
 
@@ -45,6 +63,8 @@ export type AuthUserProfile = {
   phone: string | null;
   avatarUrl: string | null;
   hasPassword: boolean;
+  realNameVerified: boolean;
+  realNameVerifiedAt: Date | null;
   roles: PlatformRole[];
   availableRoles: PlatformRole[];
   primaryRole: PlatformRole | null;

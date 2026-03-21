@@ -69,6 +69,7 @@ type BookingContext = {
     userId: string;
     displayName: string;
     verificationStatus: TeacherVerificationStatus;
+    onboardingCompletedAt: Date | null;
     baseHourlyRate: Prisma.Decimal;
   };
   studentProfile: {
@@ -324,6 +325,7 @@ export class BookingsService {
     subjectId: string;
     serviceAddressId: string;
   }): Promise<BookingContext> {
+    const prisma = this.prisma as any;
     const [
       teacherProfile,
       studentProfile,
@@ -332,17 +334,18 @@ export class BookingsService {
       serviceAddress,
       teacherSubject,
     ] = await Promise.all([
-      this.prisma.teacherProfile.findUnique({
+      prisma.teacherProfile.findUnique({
         where: { id: params.teacherProfileId },
         select: {
           id: true,
           userId: true,
           displayName: true,
           verificationStatus: true,
+          onboardingCompletedAt: true,
           baseHourlyRate: true,
         },
       }),
-      this.prisma.studentProfile.findUnique({
+      prisma.studentProfile.findUnique({
         where: { id: params.studentProfileId },
         select: {
           id: true,
@@ -352,7 +355,7 @@ export class BookingsService {
         },
       }),
       params.guardianProfileId
-        ? this.prisma.guardianProfile.findUnique({
+        ? prisma.guardianProfile.findUnique({
             where: { id: params.guardianProfileId },
             select: {
               id: true,
@@ -362,7 +365,7 @@ export class BookingsService {
             },
           })
         : Promise.resolve(null),
-      this.prisma.subject.findUnique({
+      prisma.subject.findUnique({
         where: { id: params.subjectId },
         select: {
           id: true,
@@ -370,7 +373,7 @@ export class BookingsService {
           name: true,
         },
       }),
-      this.prisma.address.findUnique({
+      prisma.address.findUnique({
         where: { id: params.serviceAddressId },
         select: {
           id: true,
@@ -386,7 +389,7 @@ export class BookingsService {
           building: true,
         },
       }),
-      this.prisma.teacherSubject.findFirst({
+      prisma.teacherSubject.findFirst({
         where: {
           teacherProfileId: params.teacherProfileId,
           subjectId: params.subjectId,
@@ -410,8 +413,69 @@ export class BookingsService {
       throw new BadRequestException('当前老师尚未审核通过，不能创建预约');
     }
 
+    const [teacherUserRowsRaw, studentRowsRaw, guardianRowsRaw] =
+      await Promise.all([
+      prisma.$queryRawUnsafe(
+        'SELECT real_name_verified_at FROM users WHERE id = $1 LIMIT 1',
+        teacherProfile.userId,
+      ),
+      studentProfile.userId
+          ? prisma.$queryRawUnsafe(
+              `SELECT sp.onboarding_completed_at, u.real_name_verified_at
+               FROM student_profiles sp
+               LEFT JOIN users u ON u.id = sp.user_id
+               WHERE sp.id = $1
+               LIMIT 1`,
+              studentProfile.id,
+            )
+          : Promise.resolve([]),
+      guardianProfile
+          ? prisma.$queryRawUnsafe(
+              `SELECT gp.onboarding_completed_at, u.real_name_verified_at
+               FROM guardian_profiles gp
+               LEFT JOIN users u ON u.id = gp.user_id
+               WHERE gp.id = $1
+               LIMIT 1`,
+              guardianProfile.id,
+            )
+          : Promise.resolve([]),
+    ]);
+
+    const teacherUserRows =
+      teacherUserRowsRaw as Array<{ real_name_verified_at: Date | null }>;
+    const studentRows = studentRowsRaw as Array<{
+      onboarding_completed_at: Date | null;
+      real_name_verified_at: Date | null;
+    }>;
+    const guardianRows = guardianRowsRaw as Array<{
+      onboarding_completed_at: Date | null;
+      real_name_verified_at: Date | null;
+    }>;
+
+    const teacherRealNameVerifiedAt = teacherUserRows[0]?.real_name_verified_at ?? null;
+    const studentOnboardingCompletedAt = studentRows[0]?.onboarding_completed_at ?? null;
+    const studentRealNameVerifiedAt = studentRows[0]?.real_name_verified_at ?? null;
+    const guardianOnboardingCompletedAt = guardianRows[0]?.onboarding_completed_at ?? null;
+    const guardianRealNameVerifiedAt = guardianRows[0]?.real_name_verified_at ?? null;
+
+    if (!teacherProfile.onboardingCompletedAt) {
+      throw new BadRequestException('当前老师尚未完成入驻资料，不能创建预约');
+    }
+
+    if (!teacherRealNameVerifiedAt) {
+      throw new BadRequestException('当前老师尚未完成实名认证，不能创建预约');
+    }
+
     if (!studentProfile) {
       throw new NotFoundException(`未找到学生档案：${params.studentProfileId}`);
+    }
+
+    if (
+      !guardianProfile &&
+      studentProfile.userId &&
+      (!studentOnboardingCompletedAt || !studentRealNameVerifiedAt)
+    ) {
+      throw new BadRequestException('当前学生尚未完成资料或实名认证，不能创建预约');
     }
 
     if (params.guardianProfileId && !guardianProfile) {
@@ -433,7 +497,15 @@ export class BookingsService {
     }
 
     if (guardianProfile) {
-      const studentGuardian = await this.prisma.studentGuardian.findFirst({
+      if (!guardianOnboardingCompletedAt) {
+        throw new BadRequestException('当前家长尚未完成首登资料，不能创建预约');
+      }
+
+      if (!guardianRealNameVerifiedAt) {
+        throw new BadRequestException('当前家长尚未完成实名认证，不能创建预约');
+      }
+
+      const studentGuardian = await prisma.studentGuardian.findFirst({
         where: {
           studentProfileId: params.studentProfileId,
           guardianProfileId: guardianProfile.id,

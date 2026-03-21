@@ -46,6 +46,10 @@ describe('BookingsService', () => {
       userId: 'user_teacher_1',
       displayName: '李老师',
       verificationStatus: TeacherVerificationStatus.APPROVED,
+      onboardingCompletedAt: new Date('2026-03-18T00:00:00.000Z'),
+      user: {
+        realNameVerifiedAt: new Date('2026-03-18T00:00:00.000Z'),
+      },
       baseHourlyRate: { toString: () => '180' },
     },
     studentProfile: {
@@ -53,12 +57,18 @@ describe('BookingsService', () => {
       userId: null,
       displayName: '小宇',
       gradeLevel: 'PRIMARY',
+      onboardingCompletedAt: null,
+      user: null,
     },
     guardianProfile: {
       id: 'guardian_1',
       userId: 'user_guardian_1',
       displayName: '王女士',
       phone: '13800138000',
+      onboardingCompletedAt: new Date('2026-03-18T00:00:00.000Z'),
+      user: {
+        realNameVerifiedAt: new Date('2026-03-18T00:00:00.000Z'),
+      },
     },
     subject: {
       id: 'subject_1',
@@ -114,6 +124,7 @@ describe('BookingsService', () => {
       update: jest.fn(),
       delete: jest.fn(),
     },
+    $queryRawUnsafe: jest.fn(),
     $transaction: jest.fn(),
   };
 
@@ -121,6 +132,7 @@ describe('BookingsService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    prisma.$queryRawUnsafe.mockResolvedValue([]);
     service = new BookingsService(prisma as never);
   });
 
@@ -141,6 +153,16 @@ describe('BookingsService', () => {
       hourlyRate: { toString: () => '180' },
       trialRate: { toString: () => '99' },
     });
+    prisma.$queryRawUnsafe
+      .mockResolvedValueOnce([
+        { real_name_verified_at: new Date('2026-03-18T00:00:00.000Z') },
+      ])
+      .mockResolvedValueOnce([
+        {
+          onboarding_completed_at: new Date('2026-03-18T00:00:00.000Z'),
+          real_name_verified_at: new Date('2026-03-18T00:00:00.000Z'),
+        },
+      ]);
     prisma.studentGuardian.findFirst.mockResolvedValue({
       id: 'student_guardian_1',
     });
@@ -184,6 +206,50 @@ describe('BookingsService', () => {
 
     expect(result.total).toBe(1);
     expect(result.items[0].subject.code).toBe('PIANO');
+  });
+
+  it('should reject booking when guardian has not completed real-name verification', async () => {
+    prisma.teacherProfile.findUnique.mockResolvedValue(
+      bookingEntity.teacherProfile,
+    );
+    prisma.studentProfile.findUnique.mockResolvedValue(
+      bookingEntity.studentProfile,
+    );
+    prisma.guardianProfile.findUnique.mockResolvedValue({
+      ...bookingEntity.guardianProfile,
+      user: {
+        realNameVerifiedAt: null,
+      },
+    });
+    prisma.subject.findUnique.mockResolvedValue(bookingEntity.subject);
+    prisma.address.findUnique.mockResolvedValue(bookingEntity.serviceAddress);
+    prisma.teacherSubject.findFirst.mockResolvedValue({
+      id: 'teacher_subject_1',
+      hourlyRate: { toString: () => '180' },
+      trialRate: { toString: () => '99' },
+    });
+    prisma.$queryRawUnsafe
+      .mockResolvedValueOnce([
+        { real_name_verified_at: new Date('2026-03-18T00:00:00.000Z') },
+      ])
+      .mockResolvedValueOnce([
+        {
+          onboarding_completed_at: new Date('2026-03-18T00:00:00.000Z'),
+          real_name_verified_at: null,
+        },
+      ]);
+
+    await expect(
+      service.create({
+        teacherProfileId: 'teacher_1',
+        studentProfileId: 'student_1',
+        guardianProfileId: 'guardian_1',
+        subjectId: 'subject_1',
+        serviceAddressId: 'addr_1',
+        startAt: '2026-03-20T09:00:00.000Z',
+        endAt: '2026-03-20T10:00:00.000Z',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('should move booking to pending payment after acceptance', async () => {

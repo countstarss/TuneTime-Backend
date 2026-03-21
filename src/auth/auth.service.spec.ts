@@ -30,6 +30,9 @@ describe('AuthService', () => {
     address: {
       findUnique: jest.fn(),
     },
+    $queryRawUnsafe: jest.fn(),
+    $executeRawUnsafe: jest.fn(),
+    $transaction: jest.fn(),
   };
 
   const passwordAuthService = {
@@ -57,17 +60,33 @@ describe('AuthService', () => {
     setPrimaryRole: jest.fn(),
   };
 
+  const realNameVerificationService = {
+    createSession: jest.fn(),
+    completeMockSession: jest.fn(),
+    getVerificationSnapshot: jest.fn(),
+  };
+
   let service: AuthService;
 
   beforeEach(() => {
     jest.clearAllMocks();
     process.env.AUTH_JWT_SECRET = '12345678901234567890123456789012';
+    prisma.$queryRawUnsafe.mockResolvedValue([]);
+    prisma.$executeRawUnsafe.mockResolvedValue(1);
+    prisma.$transaction.mockImplementation((callback: any) => callback(prisma));
+    realNameVerificationService.getVerificationSnapshot.mockResolvedValue({
+      realNameVerifiedAt: null,
+      realNameProvider: null,
+      realNameVerifiedName: null,
+      realNameIdNumberMasked: null,
+    });
     service = new AuthService(
       prisma as never,
       passwordAuthService as never,
       smsAuthService as never,
       wechatAuthService as never,
       profileBootstrapService as never,
+      realNameVerificationService as never,
     );
   });
 
@@ -78,23 +97,60 @@ describe('AuthService', () => {
       email: 'user@example.com',
       phone: '13800138000',
       phoneVerifiedAt: new Date('2026-03-20T00:00:00.000Z'),
+      realNameVerifiedAt: new Date('2026-03-20T00:00:00.000Z'),
       image: 'https://example.com/avatar.png',
       status: UserStatus.ACTIVE,
       passwordCredential: { id: 'pwd_1' },
       accounts: [{ provider: 'WECHAT_APP' }],
       teacherProfile: {
         id: 'teacher_1',
+        displayName: '李老师',
+        bio: '钢琴老师',
+        employmentType: 'PART_TIME',
+        baseHourlyRate: { toString: () => '200' },
+        serviceRadiusKm: 8,
+        acceptTrial: true,
+        maxTravelMinutes: 50,
+        agreementAcceptedAt: new Date('2026-03-18T00:00:00.000Z'),
         verificationStatus: TeacherVerificationStatus.APPROVED,
         onboardingCompletedAt: new Date('2026-03-20T00:00:00.000Z'),
+        subjects: [{ id: 'teacher_subject_1' }],
+        serviceAreas: [{ id: 'service_area_1' }],
+        credentials: [{ id: 'credential_1' }],
       },
       guardianProfile: {
         id: 'guardian_1',
+        displayName: '王女士',
+        phone: '13800138000',
+        emergencyContactName: '王先生',
+        emergencyContactPhone: '13800138001',
+        defaultServiceAddressId: 'addr_1',
+        onboardingCompletedAt: new Date('2026-03-20T00:00:00.000Z'),
+        students: [
+          {
+            studentProfile: {
+              id: 'student_1',
+              displayName: '小王',
+              gradeLevel: 'PRIMARY',
+              dateOfBirth: null,
+              schoolName: null,
+              learningGoals: null,
+              specialNeeds: null,
+            },
+          },
+        ],
       },
       studentProfile: null,
       roles: [
         { role: PlatformRole.GUARDIAN, isPrimary: true },
         { role: PlatformRole.TEACHER, isPrimary: false },
       ],
+    });
+    realNameVerificationService.getVerificationSnapshot.mockResolvedValue({
+      realNameVerifiedAt: new Date('2026-03-20T00:00:00.000Z'),
+      realNameProvider: 'MOCK',
+      realNameVerifiedName: '王女士',
+      realNameIdNumberMasked: '1101********1234',
     });
 
     const profile = await service.getProfileByUserId(
@@ -121,6 +177,8 @@ describe('AuthService', () => {
       }),
     );
     expect(profile?.onboardingState.teacher.canAcceptBookings).toBe(true);
+    expect(profile?.realNameVerified).toBe(true);
+    expect(profile?.onboardingState.guardian.canBookLessons).toBe(true);
   });
 
   it('should switch role and issue a new token', async () => {
@@ -130,13 +188,32 @@ describe('AuthService', () => {
       email: 'user@example.com',
       phone: '13800138000',
       phoneVerifiedAt: new Date('2026-03-20T00:00:00.000Z'),
+      realNameVerifiedAt: null,
       image: null,
       status: UserStatus.ACTIVE,
       passwordCredential: { id: 'pwd_1' },
       accounts: [],
       teacherProfile: null,
-      guardianProfile: { id: 'guardian_1' },
-      studentProfile: { id: 'student_1' },
+      guardianProfile: {
+        id: 'guardian_1',
+        displayName: '王女士',
+        phone: '13800138000',
+        emergencyContactName: null,
+        emergencyContactPhone: null,
+        defaultServiceAddressId: null,
+        onboardingCompletedAt: null,
+        students: [],
+      },
+      studentProfile: {
+        id: 'student_1',
+        displayName: '小宇',
+        gradeLevel: 'PRIMARY',
+        dateOfBirth: null,
+        schoolName: null,
+        learningGoals: null,
+        specialNeeds: null,
+        onboardingCompletedAt: null,
+      },
       roles: [
         { role: PlatformRole.GUARDIAN, isPrimary: true },
         { role: PlatformRole.STUDENT, isPrimary: false },
@@ -160,12 +237,22 @@ describe('AuthService', () => {
       email: null,
       phone: '13800138000',
       phoneVerifiedAt: new Date('2026-03-20T00:00:00.000Z'),
+      realNameVerifiedAt: null,
       image: null,
       status: UserStatus.ACTIVE,
       passwordCredential: null,
       accounts: [],
       teacherProfile: null,
-      guardianProfile: { id: 'guardian_1' },
+      guardianProfile: {
+        id: 'guardian_1',
+        displayName: '王女士',
+        phone: '13800138000',
+        emergencyContactName: null,
+        emergencyContactPhone: null,
+        defaultServiceAddressId: null,
+        onboardingCompletedAt: null,
+        students: [],
+      },
       studentProfile: null,
       roles: [{ role: PlatformRole.GUARDIAN, isPrimary: true }],
     });
@@ -213,12 +300,22 @@ describe('AuthService', () => {
         email: null,
         phone: '13800138000',
         phoneVerifiedAt: new Date('2026-03-20T00:00:00.000Z'),
+        realNameVerifiedAt: null,
         image: null,
         status: UserStatus.ACTIVE,
         passwordCredential: { id: 'pwd_1' },
         accounts: [],
         teacherProfile: null,
-        guardianProfile: { id: 'guardian_1' },
+        guardianProfile: {
+          id: 'guardian_1',
+          displayName: '王女士',
+          phone: '13800138000',
+          emergencyContactName: null,
+          emergencyContactPhone: null,
+          defaultServiceAddressId: null,
+          onboardingCompletedAt: null,
+          students: [],
+        },
         studentProfile: null,
         roles: [{ role: PlatformRole.GUARDIAN, isPrimary: true }],
       });

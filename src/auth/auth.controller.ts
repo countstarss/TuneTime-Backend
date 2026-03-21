@@ -14,13 +14,19 @@ import {
   BindEmailPasswordDto,
   BindPhoneConfirmDto,
   BindPhoneRequestDto,
+  CompleteMockRealNameVerificationDto,
   EmailLoginDto,
   EmailRegisterDto,
   PhonePasswordLoginDto,
+  RealNameVerificationSessionDto,
+  RealNameVerificationSessionRequestDto,
   ResetPasswordWithSmsDto,
   RoleSwitchDto,
+  SelfGuardianOnboardingUpdateDto,
   SelfGuardianProfileUpdateDto,
+  SelfStudentOnboardingUpdateDto,
   SelfStudentProfileUpdateDto,
+  SelfTeacherOnboardingUpdateDto,
   SelfTeacherProfileUpdateDto,
   SmsRequestCodeDto,
   SmsVerifyDto,
@@ -188,6 +194,37 @@ export class AuthController {
     );
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Post('real-name/session')
+  @ApiBearerAuth('bearer')
+  @ApiOperation({ summary: '创建实名核身会话' })
+  @ApiOkResponse({ type: RealNameVerificationSessionDto })
+  async createRealNameVerificationSession(
+    @CurrentUser() currentUser: AuthenticatedUserContext,
+    @Body() dto: RealNameVerificationSessionRequestDto,
+  ) {
+    return this.authService.createRealNameVerificationSession(
+      currentUser.userId,
+      dto,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('real-name/mock/complete')
+  @ApiBearerAuth('bearer')
+  @ApiOperation({ summary: '开发环境下完成模拟实名核身' })
+  @ApiOkResponse({ type: AuthResponseDto })
+  async completeMockRealNameVerification(
+    @CurrentUser() currentUser: AuthenticatedUserContext,
+    @Body() dto: CompleteMockRealNameVerificationDto,
+  ) {
+    return this.authService.completeMockRealNameVerification(
+      currentUser.userId,
+      dto,
+      currentUser.activeRole,
+    );
+  }
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @RequireRoles(PlatformRole.TEACHER)
   @Patch('self/teacher-profile')
@@ -199,6 +236,19 @@ export class AuthController {
     @Body() dto: SelfTeacherProfileUpdateDto,
   ) {
     return this.authService.updateSelfTeacherProfile(currentUser.userId, dto);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireRoles(PlatformRole.TEACHER)
+  @Patch('self/teacher-onboarding')
+  @ApiBearerAuth('bearer')
+  @ApiOperation({ summary: '老师首登 onboarding 提交' })
+  @ApiOkResponse({ type: AuthResponseDto })
+  async updateTeacherOnboarding(
+    @CurrentUser() currentUser: AuthenticatedUserContext,
+    @Body() dto: SelfTeacherOnboardingUpdateDto,
+  ) {
+    return this.authService.updateSelfTeacherOnboarding(currentUser.userId, dto);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -215,6 +265,22 @@ export class AuthController {
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireRoles(PlatformRole.GUARDIAN)
+  @Patch('self/guardian-onboarding')
+  @ApiBearerAuth('bearer')
+  @ApiOperation({ summary: '家长首登 onboarding 提交' })
+  @ApiOkResponse({ type: AuthResponseDto })
+  async updateGuardianOnboarding(
+    @CurrentUser() currentUser: AuthenticatedUserContext,
+    @Body() dto: SelfGuardianOnboardingUpdateDto,
+  ) {
+    return this.authService.updateSelfGuardianOnboarding(
+      currentUser.userId,
+      dto,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @RequireRoles(PlatformRole.STUDENT)
   @Patch('self/student-profile')
   @ApiBearerAuth('bearer')
@@ -225,5 +291,18 @@ export class AuthController {
     @Body() dto: SelfStudentProfileUpdateDto,
   ) {
     return this.authService.updateSelfStudentProfile(currentUser.userId, dto);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireRoles(PlatformRole.STUDENT)
+  @Patch('self/student-onboarding')
+  @ApiBearerAuth('bearer')
+  @ApiOperation({ summary: '学生首登 onboarding 提交' })
+  @ApiOkResponse({ type: AuthResponseDto })
+  async updateStudentOnboarding(
+    @CurrentUser() currentUser: AuthenticatedUserContext,
+    @Body() dto: SelfStudentOnboardingUpdateDto,
+  ) {
+    return this.authService.updateSelfStudentOnboarding(currentUser.userId, dto);
   }
 }

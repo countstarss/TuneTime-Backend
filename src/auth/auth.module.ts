@@ -12,6 +12,10 @@ import { RolesGuard } from './roles.guard';
 import { SmsGateway } from './sms-gateway.interface';
 import { DevelopmentSmsGateway } from './development-sms.gateway';
 import { TencentSmsGateway } from './tencent-sms.gateway';
+import { RealNameVerificationGateway } from './real-name-verification.gateway';
+import { DevelopmentRealNameGateway } from './development-real-name.gateway';
+import { TencentRealNameGateway } from './tencent-real-name.gateway';
+import { RealNameVerificationService } from './real-name-verification.service';
 
 function createSmsGateway() {
   if (
@@ -27,6 +31,19 @@ function createSmsGateway() {
   return new DevelopmentSmsGateway();
 }
 
+function createRealNameVerificationGateway() {
+  if (
+    process.env.REAL_NAME_PROVIDER === 'TENCENT_H5' &&
+    process.env.TENCENT_FACEID_SECRET_ID &&
+    process.env.TENCENT_FACEID_SECRET_KEY &&
+    process.env.TENCENT_FACEID_RULE_ID
+  ) {
+    return new TencentRealNameGateway();
+  }
+
+  return new DevelopmentRealNameGateway();
+}
+
 @Module({
   imports: [PrismaModule],
   providers: [
@@ -36,11 +53,16 @@ function createSmsGateway() {
     WechatAuthService,
     IdentityLinkingService,
     ProfileBootstrapService,
+    RealNameVerificationService,
     JwtAuthGuard,
     RolesGuard,
     {
       provide: SmsGateway,
       useFactory: createSmsGateway,
+    },
+    {
+      provide: RealNameVerificationGateway,
+      useFactory: createRealNameVerificationGateway,
     },
   ],
   controllers: [AuthController],

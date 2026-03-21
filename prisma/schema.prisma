@@ -274,6 +274,10 @@ model User {
   image           String?
   phone           String?    @unique
   phoneVerifiedAt DateTime?  @map("phone_verified_at")
+  realNameVerifiedAt DateTime? @map("real_name_verified_at")
+  realNameProvider   String?   @map("real_name_provider")
+  realNameVerifiedName String? @map("real_name_verified_name")
+  realNameIdNumberMasked String? @map("real_name_id_number_masked")
   status          UserStatus @default(ACTIVE)
   timezone        String     @default("Asia/Shanghai")
   locale          String     @default("zh-CN")
@@ -291,6 +295,7 @@ model User {
   studentProfile                 StudentProfile?
   guardianProfile                GuardianProfile?
   addresses                      Address[]
+  realNameVerificationSessions   RealNameVerificationSession[]
   wallet                         Wallet?
   walletTransactions             WalletTransaction[]        @relation("TxnCreatedBy")
   bookingsCancelled              Booking[]                  @relation("BookingCancelledBy")
@@ -583,6 +588,7 @@ model StudentProfile {
   learningGoals String?     @map("learning_goals")
   specialNeeds  String?     @map("special_needs")
   timezone      String      @default("Asia/Shanghai")
+  onboardingCompletedAt DateTime? @map("onboarding_completed_at")
   createdAt     DateTime    @default(now()) @map("created_at")
   updatedAt     DateTime    @updatedAt @map("updated_at")
 
@@ -604,6 +610,7 @@ model GuardianProfile {
   emergencyContactName    String?  @map("emergency_contact_name")
   emergencyContactPhone   String?  @map("emergency_contact_phone")
   defaultServiceAddressId String?  @map("default_service_address_id")
+  onboardingCompletedAt   DateTime? @map("onboarding_completed_at")
   createdAt               DateTime @default(now()) @map("created_at")
   updatedAt               DateTime @updatedAt @map("updated_at")
 
@@ -661,6 +668,25 @@ model Address {
   @@index([userId, isDefault])
   @@index([city, district])
   @@map("addresses")
+}
+
+model RealNameVerificationSession {
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  provider      String
+  status        String   @default("PENDING")
+  ticket        String?  @unique
+  startUrl      String?  @map("start_url")
+  resultPayload Json?    @map("result_payload")
+  verifiedAt    DateTime? @map("verified_at")
+  expiresAt     DateTime? @map("expires_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@map("real_name_verification_sessions")
 }
 
 model Booking {
