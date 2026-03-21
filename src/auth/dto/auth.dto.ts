@@ -62,6 +62,25 @@ export class EmailLoginDto {
   requestedRole?: PlatformRole;
 }
 
+export class PhonePasswordLoginDto {
+  @ApiProperty({ description: '手机号。', example: '13800138000' })
+  @IsString()
+  phone!: string;
+
+  @ApiProperty({ description: '密码。', example: 'TuneTime123!' })
+  @IsString()
+  password!: string;
+
+  @ApiPropertyOptional({
+    description: '希望切换到的身份。',
+    enum: [PlatformRole.TEACHER, PlatformRole.GUARDIAN, PlatformRole.STUDENT],
+    example: PlatformRole.TEACHER,
+  })
+  @IsOptional()
+  @IsEnum(PlatformRole)
+  requestedRole?: PlatformRole;
+}
+
 export class SmsRequestCodeDto {
   @ApiProperty({ description: '手机号。', example: '13800138000' })
   @IsString()
@@ -142,6 +161,17 @@ export class BindEmailPasswordDto {
   password!: string;
 }
 
+export class ResetPasswordWithSmsDto {
+  @ApiProperty({ description: '验证码。', example: '123456' })
+  @IsString()
+  @Length(4, 8)
+  code!: string;
+
+  @ApiProperty({ description: '新密码。', example: 'TuneTime123!' })
+  @IsString()
+  password!: string;
+}
+
 export class AuthProfileIdsDto {
   @ApiPropertyOptional({ nullable: true })
   teacherProfileId!: string | null;
@@ -204,6 +234,9 @@ export class AuthUserDto {
 
   @ApiPropertyOptional({ nullable: true })
   avatarUrl!: string | null;
+
+  @ApiProperty()
+  hasPassword!: boolean;
 
   @ApiProperty({ enum: PlatformRole, isArray: true })
   roles!: PlatformRole[];

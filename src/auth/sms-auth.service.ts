@@ -57,6 +57,15 @@ export class SmsAuthService {
     });
   }
 
+  async requestPasswordResetCode(userId: string, phone: string) {
+    const normalizedPhone = normalizePhone(phone);
+    return this.requestCode({
+      userId,
+      phone: normalizedPhone,
+      purpose: AuthCodePurpose.PASSWORD_RESET,
+    });
+  }
+
   async verifyLoginCode(input: {
     phone: string;
     code: string;
@@ -156,6 +165,20 @@ export class SmsAuthService {
       phone,
       new Date(),
     );
+  }
+
+  async confirmPasswordResetCode(input: {
+    userId: string;
+    phone: string;
+    code: string;
+  }) {
+    const phone = normalizePhone(input.phone);
+    await this.consumeCode({
+      userId: input.userId,
+      phone,
+      code: input.code,
+      purpose: AuthCodePurpose.PASSWORD_RESET,
+    });
   }
 
   private async requestCode(input: {

@@ -16,6 +16,8 @@ import {
   BindPhoneRequestDto,
   EmailLoginDto,
   EmailRegisterDto,
+  PhonePasswordLoginDto,
+  ResetPasswordWithSmsDto,
   RoleSwitchDto,
   SelfGuardianProfileUpdateDto,
   SelfStudentProfileUpdateDto,
@@ -61,6 +63,13 @@ export class AuthController {
   @ApiOkResponse({ type: AuthResponseDto })
   async loginWithEmail(@Body() dto: EmailLoginDto) {
     return this.authService.loginWithPassword(dto);
+  }
+
+  @Post('phone-password/login')
+  @ApiOperation({ summary: '手机号密码登录' })
+  @ApiOkResponse({ type: AuthResponseDto })
+  async loginWithPhonePassword(@Body() dto: PhonePasswordLoginDto) {
+    return this.authService.loginWithPhonePassword(dto);
   }
 
   @Post('sms/request-code')
@@ -146,6 +155,34 @@ export class AuthController {
     return this.authService.bindEmailPassword(
       currentUser.userId,
       dto.email,
+      dto.password,
+      currentUser.activeRole,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('password/reset/request')
+  @ApiBearerAuth('bearer')
+  @ApiOperation({ summary: '向当前账号手机号发送设置/修改密码验证码' })
+  @ApiOkResponse({ type: AuthCodeDispatchResponseDto })
+  async requestPasswordResetCode(
+    @CurrentUser() currentUser: AuthenticatedUserContext,
+  ) {
+    return this.authService.requestPasswordResetCode(currentUser.userId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('password/reset/confirm')
+  @ApiBearerAuth('bearer')
+  @ApiOperation({ summary: '使用短信验证码设置/修改密码' })
+  @ApiOkResponse({ type: AuthResponseDto })
+  async confirmPasswordReset(
+    @CurrentUser() currentUser: AuthenticatedUserContext,
+    @Body() dto: ResetPasswordWithSmsDto,
+  ) {
+    return this.authService.confirmPasswordReset(
+      currentUser.userId,
+      dto.code,
       dto.password,
       currentUser.activeRole,
     );

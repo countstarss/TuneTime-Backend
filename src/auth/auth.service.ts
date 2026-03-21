@@ -107,6 +107,7 @@ export class AuthService {
       email: user.email,
       phone: user.phone,
       avatarUrl: user.image,
+      hasPassword: !!user.passwordCredential,
       roles,
       availableRoles: roles,
       primaryRole,
@@ -180,6 +181,15 @@ export class AuthService {
     return this.issueAuthResponse(result.userId, result.activeRole);
   }
 
+  async loginWithPhonePassword(input: {
+    phone: string;
+    password: string;
+    requestedRole?: PlatformRole;
+  }): Promise<AuthResponse> {
+    const result = await this.passwordAuthService.loginWithPhone(input);
+    return this.issueAuthResponse(result.userId, result.activeRole);
+  }
+
   async requestSmsCode(phone: string) {
     return this.smsAuthService.requestLoginCode(phone);
   }
@@ -232,6 +242,64 @@ export class AuthService {
       password,
     });
     return this.issueAuthResponse(mergedUserId, preferredRole);
+  }
+
+  async requestPasswordResetCode(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        phone: true,
+        phoneVerifiedAt: true,
+        status: true,
+      },
+    });
+
+    if (!user || user.status !== UserStatus.ACTIVE) {
+      throw new UnauthorizedException('User profile not found');
+    }
+
+    if (!user.phone || !user.phoneVerifiedAt) {
+      throw new BadRequestException(
+        'A verified phone number is required to reset password',
+      );
+    }
+
+    return this.smsAuthService.requestPasswordResetCode(userId, user.phone);
+  }
+
+  async confirmPasswordReset(
+    userId: string,
+    code: string,
+    password: string,
+    preferredRole?: PlatformRole | null,
+  ): Promise<AuthResponse> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        phone: true,
+        phoneVerifiedAt: true,
+        status: true,
+      },
+    });
+
+    if (!user || user.status !== UserStatus.ACTIVE) {
+      throw new UnauthorizedException('User profile not found');
+    }
+
+    if (!user.phone || !user.phoneVerifiedAt) {
+      throw new BadRequestException(
+        'A verified phone number is required to reset password',
+      );
+    }
+
+    await this.smsAuthService.confirmPasswordResetCode({
+      userId,
+      phone: user.phone,
+      code,
+    });
+    await this.passwordAuthService.setPassword(userId, password);
+
+    return this.issueAuthResponse(userId, preferredRole);
   }
 
   async switchRole(userId: string, role: PlatformRole): Promise<AuthResponse> {

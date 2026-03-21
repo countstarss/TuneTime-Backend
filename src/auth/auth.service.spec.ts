@@ -35,7 +35,9 @@ describe('AuthService', () => {
   const passwordAuthService = {
     registerWithEmail: jest.fn(),
     loginWithEmail: jest.fn(),
+    loginWithPhone: jest.fn(),
     bindEmailPassword: jest.fn(),
+    setPassword: jest.fn(),
   };
 
   const smsAuthService = {
@@ -43,6 +45,8 @@ describe('AuthService', () => {
     verifyLoginCode: jest.fn(),
     requestPhoneBindCode: jest.fn(),
     confirmPhoneBind: jest.fn(),
+    requestPasswordResetCode: jest.fn(),
+    confirmPasswordResetCode: jest.fn(),
   };
 
   const wechatAuthService = {
@@ -103,6 +107,7 @@ describe('AuthService', () => {
         id: 'user_1',
         roles: [PlatformRole.GUARDIAN, PlatformRole.TEACHER],
         activeRole: PlatformRole.TEACHER,
+        hasPassword: true,
         loginMethods: expect.arrayContaining([
           'EMAIL_PASSWORD',
           'SMS',
@@ -168,5 +173,73 @@ describe('AuthService', () => {
     await expect(
       service.switchRole('user_1', PlatformRole.TEACHER),
     ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('should request password reset code for current verified phone', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      phone: '13800138000',
+      phoneVerifiedAt: new Date('2026-03-20T00:00:00.000Z'),
+      status: UserStatus.ACTIVE,
+    });
+    smsAuthService.requestPasswordResetCode.mockResolvedValue({
+      success: true,
+      expiresInSeconds: 600,
+      cooldownSeconds: 60,
+    });
+
+    const result = await service.requestPasswordResetCode('user_1');
+
+    expect(smsAuthService.requestPasswordResetCode).toHaveBeenCalledWith(
+      'user_1',
+      '13800138000',
+    );
+    expect(result).toEqual({
+      success: true,
+      expiresInSeconds: 600,
+      cooldownSeconds: 60,
+    });
+  });
+
+  it('should confirm password reset and issue updated auth response', async () => {
+    prisma.user.findUnique
+      .mockResolvedValueOnce({
+        phone: '13800138000',
+        phoneVerifiedAt: new Date('2026-03-20T00:00:00.000Z'),
+        status: UserStatus.ACTIVE,
+      })
+      .mockResolvedValueOnce({
+        id: 'user_1',
+        name: '王女士',
+        email: null,
+        phone: '13800138000',
+        phoneVerifiedAt: new Date('2026-03-20T00:00:00.000Z'),
+        image: null,
+        status: UserStatus.ACTIVE,
+        passwordCredential: { id: 'pwd_1' },
+        accounts: [],
+        teacherProfile: null,
+        guardianProfile: { id: 'guardian_1' },
+        studentProfile: null,
+        roles: [{ role: PlatformRole.GUARDIAN, isPrimary: true }],
+      });
+
+    const result = await service.confirmPasswordReset(
+      'user_1',
+      '123456',
+      'TuneTime123!',
+      PlatformRole.GUARDIAN,
+    );
+
+    expect(smsAuthService.confirmPasswordResetCode).toHaveBeenCalledWith({
+      userId: 'user_1',
+      phone: '13800138000',
+      code: '123456',
+    });
+    expect(passwordAuthService.setPassword).toHaveBeenCalledWith(
+      'user_1',
+      'TuneTime123!',
+    );
+    expect(result.user.hasPassword).toBe(true);
+    expect(result.accessToken).toBe('test-token');
   });
 });

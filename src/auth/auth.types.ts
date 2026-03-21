@@ -44,6 +44,7 @@ export type AuthUserProfile = {
   email: string | null;
   phone: string | null;
   avatarUrl: string | null;
+  hasPassword: boolean;
   roles: PlatformRole[];
   availableRoles: PlatformRole[];
   primaryRole: PlatformRole | null;

@@ -12,6 +12,7 @@ import {
   assertPasswordStrength,
   assertPublicRequestedRole,
   normalizeEmail,
+  normalizePhone,
 } from './auth.utils';
 import { IdentityLinkingService } from './identity-linking.service';
 
@@ -200,6 +201,80 @@ export class PasswordAuthService {
     };
   }
 
+  async loginWithPhone(input: {
+    phone: string;
+    password: string;
+    requestedRole?: PlatformRole;
+  }): Promise<AuthTarget> {
+    const phone = normalizePhone(input.phone);
+
+    const user = await this.prisma.user.findUnique({
+      where: { phone },
+      select: {
+        id: true,
+        status: true,
+        roles: {
+          orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+          select: {
+            role: true,
+          },
+        },
+        passwordCredential: {
+          select: {
+            passwordHash: true,
+          },
+        },
+      },
+    });
+
+    if (!user?.passwordCredential) {
+      throw new UnauthorizedException('Invalid phone or password');
+    }
+
+    const isValid = await verifyPassword(
+      input.password,
+      user.passwordCredential.passwordHash,
+    );
+
+    if (!isValid || user.status !== UserStatus.ACTIVE) {
+      throw new UnauthorizedException('Invalid phone or password');
+    }
+
+    let activeRole =
+      input.requestedRole &&
+      user.roles.some((item) => item.role === input.requestedRole)
+        ? input.requestedRole
+        : (user.roles[0]?.role ?? null);
+
+    if (
+      input.requestedRole &&
+      !user.roles.some((item) => item.role === input.requestedRole)
+    ) {
+      if (
+        input.requestedRole === PlatformRole.ADMIN ||
+        input.requestedRole === PlatformRole.SUPER_ADMIN
+      ) {
+        throw new BadRequestException(
+          'Requested role is not assigned to this user',
+        );
+      }
+
+      const requestedRole = assertPublicRequestedRole(input.requestedRole);
+      await this.profileBootstrapService.ensureRoleForUser(
+        user.id,
+        requestedRole,
+        { phone },
+      );
+      await this.profileBootstrapService.setPrimaryRole(user.id, requestedRole);
+      activeRole = requestedRole;
+    }
+
+    return {
+      userId: user.id,
+      activeRole,
+    };
+  }
+
   async bindEmailPassword(input: {
     userId: string;
     email: string;
@@ -285,6 +360,22 @@ export class PasswordAuthService {
     return this.identityLinkingService.mergeUsers({
       targetUserId: existing.id,
       sourceUserId: input.userId,
+    });
+  }
+
+  async setPassword(userId: string, password: string) {
+    assertPasswordStrength(password);
+    const passwordHash = await hashPassword(password);
+
+    await this.prisma.passwordCredential.upsert({
+      where: { userId },
+      create: {
+        userId,
+        passwordHash,
+      },
+      update: {
+        passwordHash,
+      },
     });
   }
 }
