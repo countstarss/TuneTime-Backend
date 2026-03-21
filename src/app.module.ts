@@ -12,6 +12,7 @@ import { TeacherReviewsModule } from './teacher-reviews/teacher-reviews.module';
 import { TeachersModule } from './teachers/teachers.module';
 import { SubjectsModule } from './subjects/subjects.module';
 import { CrmModule } from './crm/crm.module';
+import { TestSupportModule } from './test-support/test-support.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { CrmModule } from './crm/crm.module';
     StudentsModule,
     TeachersModule,
     CrmModule,
+    TestSupportModule,
   ],
   controllers: [AppController],
   providers: [AppService],
