@@ -190,6 +190,19 @@ export class SmsAuthService {
     }
 
     const code = generateVerificationCode();
+    await this.prisma.authVerificationCode.updateMany({
+      where: {
+        ...(input.userId ? { userId: input.userId } : {}),
+        channel: AuthCodeChannel.SMS,
+        purpose: input.purpose,
+        target: input.phone,
+        consumedAt: null,
+      },
+      data: {
+        consumedAt: new Date(),
+      },
+    });
+
     await this.prisma.authVerificationCode.create({
       data: {
         userId: input.userId,
@@ -232,8 +245,9 @@ export class SmsAuthService {
         channel: AuthCodeChannel.SMS,
         purpose: input.purpose,
         target: input.phone,
+        consumedAt: null,
       },
-      orderBy: [{ consumedAt: 'asc' }, { sentAt: 'desc' }],
+      orderBy: { sentAt: 'desc' },
       select: {
         id: true,
         userId: true,

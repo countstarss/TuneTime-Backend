@@ -9,6 +9,7 @@ describe('SmsAuthService', () => {
       findFirst: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
     },
     user: {
       findUnique: jest.fn(),
@@ -55,10 +56,22 @@ describe('SmsAuthService', () => {
 
   it('should create verification code and dispatch sms', async () => {
     prisma.authVerificationCode.findFirst.mockResolvedValue(null);
+    prisma.authVerificationCode.updateMany.mockResolvedValue({ count: 0 });
     prisma.authVerificationCode.create.mockResolvedValue({ id: 'code_1' });
 
     const result = await service.requestLoginCode('13800138000');
 
+    expect(prisma.authVerificationCode.updateMany).toHaveBeenCalledWith({
+      where: {
+        channel: AuthCodeChannel.SMS,
+        purpose: AuthCodePurpose.LOGIN_OR_REGISTER,
+        target: '13800138000',
+        consumedAt: null,
+      },
+      data: {
+        consumedAt: expect.any(Date),
+      },
+    });
     expect(prisma.authVerificationCode.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         channel: AuthCodeChannel.SMS,
@@ -72,18 +85,30 @@ describe('SmsAuthService', () => {
 
   it('should create user and bootstrap requested role on first sms login', async () => {
     process.env.AUTH_CODE_SECRET = '12345678901234567890123456789012';
-    prisma.authVerificationCode.findFirst.mockResolvedValue({
-      id: 'code_1',
-      userId: null,
-      codeHash: hashVerificationCode({
-        channel: AuthCodeChannel.SMS,
-        purpose: AuthCodePurpose.LOGIN_OR_REGISTER,
-        target: '13800138000',
-        code: '123456',
-      }),
-      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
-      consumedAt: null,
-      attemptCount: 0,
+    prisma.authVerificationCode.findFirst.mockImplementation(async (args) => {
+      expect(args).toMatchObject({
+        where: {
+          channel: AuthCodeChannel.SMS,
+          purpose: AuthCodePurpose.LOGIN_OR_REGISTER,
+          target: '13800138000',
+          consumedAt: null,
+        },
+        orderBy: { sentAt: 'desc' },
+      });
+
+      return {
+        id: 'code_1',
+        userId: null,
+        codeHash: hashVerificationCode({
+          channel: AuthCodeChannel.SMS,
+          purpose: AuthCodePurpose.LOGIN_OR_REGISTER,
+          target: '13800138000',
+          code: '123456',
+        }),
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+        consumedAt: null,
+        attemptCount: 0,
+      };
     });
     prisma.authVerificationCode.update.mockResolvedValue({});
     prisma.user.findUnique.mockResolvedValue(null);
@@ -143,6 +168,59 @@ describe('SmsAuthService', () => {
       where: { id: 'code_2' },
       data: {
         attemptCount: 1,
+      },
+    });
+  });
+
+  it('should ignore previously consumed codes when verifying the latest sms code', async () => {
+    process.env.AUTH_CODE_SECRET = '12345678901234567890123456789012';
+    prisma.authVerificationCode.findFirst.mockImplementation(async (args) => {
+      expect(args).toMatchObject({
+        where: {
+          channel: AuthCodeChannel.SMS,
+          purpose: AuthCodePurpose.LOGIN_OR_REGISTER,
+          target: '13800138000',
+          consumedAt: null,
+        },
+        orderBy: { sentAt: 'desc' },
+      });
+
+      return {
+        id: 'code_latest',
+        userId: null,
+        codeHash: hashVerificationCode({
+          channel: AuthCodeChannel.SMS,
+          purpose: AuthCodePurpose.LOGIN_OR_REGISTER,
+          target: '13800138000',
+          code: '654321',
+        }),
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+        consumedAt: null,
+        attemptCount: 0,
+      };
+    });
+    prisma.authVerificationCode.update.mockResolvedValue({});
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user_existing',
+      status: 'ACTIVE',
+      roles: [{ role: PlatformRole.GUARDIAN }],
+      name: '王女士',
+    });
+    prisma.user.update.mockResolvedValue({});
+
+    const result = await service.verifyLoginCode({
+      phone: '13800138000',
+      code: '654321',
+    });
+
+    expect(result).toEqual({
+      userId: 'user_existing',
+      activeRole: PlatformRole.GUARDIAN,
+    });
+    expect(prisma.authVerificationCode.update).toHaveBeenCalledWith({
+      where: { id: 'code_latest' },
+      data: {
+        consumedAt: expect.any(Date),
       },
     });
   });
