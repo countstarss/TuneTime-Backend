@@ -9,4 +9,14 @@ export class AppController {
   getHello(): string {
     return this.appService.getHello();
   }
+
+  @Get('system/capabilities')
+  getSystemCapabilities() {
+    return {
+      bookingContext: true,
+      bookingHold: true,
+      calendar: true,
+      reschedule: true,
+    };
+  }
 }

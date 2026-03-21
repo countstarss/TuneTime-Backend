@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOkResponse,
@@ -10,6 +18,7 @@ import { CurrentUser } from './current-user.decorator';
 import {
   AuthCodeDispatchResponseDto,
   AuthResponseDto,
+  SelfBookingContextDto,
   AuthUserDto,
   BindEmailPasswordDto,
   BindPhoneConfirmDto,
@@ -23,6 +32,10 @@ import {
   ResetPasswordWithSmsDto,
   RoleSwitchDto,
   SelfGuardianOnboardingUpdateDto,
+  SelfGuardianStudentCreateDto,
+  SelfGuardianStudentUpdateDto,
+  SelfGuardianAddressCreateDto,
+  SelfGuardianAddressUpdateDto,
   SelfGuardianProfileUpdateDto,
   SelfStudentOnboardingUpdateDto,
   SelfStudentProfileUpdateDto,
@@ -32,6 +45,8 @@ import {
   SmsVerifyDto,
   WechatAppLoginDto,
 } from './dto/auth.dto';
+import { StudentResponseDto } from '../students/dto/student-response.dto';
+import { AddressResponseDto } from '../addresses/dto/address-response.dto';
 import { RequireRoles } from './require-roles.decorator';
 import { RolesGuard } from './roles.guard';
 import { JwtAuthGuard } from './supabase-auth.guard';
@@ -106,6 +121,103 @@ export class AuthController {
   @ApiOkResponse({ type: AuthUserDto })
   async getMe(@CurrentUser() currentUser: AuthenticatedUserContext) {
     return this.authService.getProfileForContext(currentUser);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('self/booking-context')
+  @ApiBearerAuth('bearer')
+  @ApiOperation({ summary: '获取当前账号的约课上下文' })
+  @ApiOkResponse({ type: SelfBookingContextDto })
+  async getSelfBookingContext(
+    @CurrentUser() currentUser: AuthenticatedUserContext,
+  ) {
+    return this.authService.getSelfBookingContext(currentUser.userId);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireRoles(PlatformRole.GUARDIAN)
+  @Get('self/guardian/students')
+  @ApiBearerAuth('bearer')
+  @ApiOperation({ summary: '获取当前家长名下的孩子资料列表' })
+  @ApiOkResponse({ type: StudentResponseDto, isArray: true })
+  async listSelfGuardianStudents(
+    @CurrentUser() currentUser: AuthenticatedUserContext,
+  ) {
+    return this.authService.listSelfGuardianStudents(currentUser.userId);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireRoles(PlatformRole.GUARDIAN)
+  @Post('self/guardian/students')
+  @ApiBearerAuth('bearer')
+  @ApiOperation({ summary: '为当前家长新增孩子资料' })
+  @ApiOkResponse({ type: StudentResponseDto })
+  async createSelfGuardianStudent(
+    @CurrentUser() currentUser: AuthenticatedUserContext,
+    @Body() dto: SelfGuardianStudentCreateDto,
+  ) {
+    return this.authService.createSelfGuardianStudent(currentUser.userId, dto);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireRoles(PlatformRole.GUARDIAN)
+  @Patch('self/guardian/students/:studentId')
+  @ApiBearerAuth('bearer')
+  @ApiOperation({ summary: '更新当前家长名下的孩子资料' })
+  @ApiOkResponse({ type: StudentResponseDto })
+  async updateSelfGuardianStudent(
+    @CurrentUser() currentUser: AuthenticatedUserContext,
+    @Param('studentId') studentId: string,
+    @Body() dto: SelfGuardianStudentUpdateDto,
+  ) {
+    return this.authService.updateSelfGuardianStudent(
+      currentUser.userId,
+      studentId,
+      dto,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireRoles(PlatformRole.GUARDIAN)
+  @Get('self/guardian/addresses')
+  @ApiBearerAuth('bearer')
+  @ApiOperation({ summary: '获取当前家长的地址列表' })
+  @ApiOkResponse({ type: AddressResponseDto, isArray: true })
+  async listSelfGuardianAddresses(
+    @CurrentUser() currentUser: AuthenticatedUserContext,
+  ) {
+    return this.authService.listSelfGuardianAddresses(currentUser.userId);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireRoles(PlatformRole.GUARDIAN)
+  @Post('self/guardian/addresses')
+  @ApiBearerAuth('bearer')
+  @ApiOperation({ summary: '为当前家长新增上课地址' })
+  @ApiOkResponse({ type: AddressResponseDto })
+  async createSelfGuardianAddress(
+    @CurrentUser() currentUser: AuthenticatedUserContext,
+    @Body() dto: SelfGuardianAddressCreateDto,
+  ) {
+    return this.authService.createSelfGuardianAddress(currentUser.userId, dto);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireRoles(PlatformRole.GUARDIAN)
+  @Patch('self/guardian/addresses/:addressId')
+  @ApiBearerAuth('bearer')
+  @ApiOperation({ summary: '更新当前家长的上课地址' })
+  @ApiOkResponse({ type: AddressResponseDto })
+  async updateSelfGuardianAddress(
+    @CurrentUser() currentUser: AuthenticatedUserContext,
+    @Param('addressId') addressId: string,
+    @Body() dto: SelfGuardianAddressUpdateDto,
+  ) {
+    return this.authService.updateSelfGuardianAddress(
+      currentUser.userId,
+      addressId,
+      dto,
+    );
   }
 
   @UseGuards(JwtAuthGuard)

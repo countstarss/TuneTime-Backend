@@ -7,8 +7,10 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import {
+  ApiBearerAuth,
   ApiBody,
   ApiNotFoundResponse,
   ApiOkResponse,
@@ -18,7 +20,14 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { PlatformRole } from '@prisma/client';
+import { CurrentUser } from '../auth/current-user.decorator';
+import { AuthenticatedUserContext } from '../auth/auth.types';
+import { RequireRoles } from '../auth/require-roles.decorator';
+import { RolesGuard } from '../auth/roles.guard';
+import { JwtAuthGuard } from '../auth/supabase-auth.guard';
 import { AcceptBookingDto } from './dto/accept-booking.dto';
+import { BookingHoldResponseDto } from './dto/booking-hold-response.dto';
 import {
   BookingListResponseDto,
   BookingResponseDto,
@@ -26,8 +35,14 @@ import {
 } from './dto/booking-response.dto';
 import { CancelBookingDto } from './dto/cancel-booking.dto';
 import { ConfirmBookingDto } from './dto/confirm-booking.dto';
+import { CreateBookingFromHoldDto } from './dto/create-booking-from-hold.dto';
+import { CreateBookingHoldDto } from './dto/create-booking-hold.dto';
 import { CreateBookingDto } from './dto/create-booking.dto';
+import { CreateRescheduleRequestDto } from './dto/create-reschedule-request.dto';
 import { ListBookingsQueryDto } from './dto/list-bookings-query.dto';
+import { ListMyBookingsQueryDto } from './dto/list-my-bookings-query.dto';
+import { RespondBookingDto } from './dto/respond-booking.dto';
+import { RespondRescheduleRequestDto } from './dto/respond-reschedule-request.dto';
 import { UpdateBookingPaymentDto } from './dto/update-booking-payment.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
 import { BookingsService } from './bookings.service';
@@ -37,7 +52,44 @@ import { BookingsService } from './bookings.service';
 export class BookingsController {
   constructor(private readonly bookingsService: BookingsService) {}
 
+  @Post('/from-hold')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireRoles(PlatformRole.GUARDIAN)
+  @ApiBearerAuth('bearer')
+  @ApiOperation({
+    summary: '家长从占位创建预约',
+    description: '消费有效 booking hold，正式生成预约单。',
+  })
+  @ApiBody({ type: CreateBookingFromHoldDto })
+  @ApiOkResponse({ type: BookingResponseDto })
+  createFromHold(
+    @CurrentUser() currentUser: AuthenticatedUserContext,
+    @Body() dto: CreateBookingFromHoldDto,
+  ): Promise<BookingResponseDto> {
+    return this.bookingsService.createFromHold(currentUser, dto);
+  }
+
+  @Post('/holds')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireRoles(PlatformRole.GUARDIAN)
+  @ApiBearerAuth('bearer')
+  @ApiOperation({
+    summary: '家长创建预约占位',
+    description: '正式下单前先锁定时段，默认保留 5 分钟。',
+  })
+  @ApiBody({ type: CreateBookingHoldDto })
+  @ApiOkResponse({ type: BookingHoldResponseDto })
+  createHold(
+    @CurrentUser() currentUser: AuthenticatedUserContext,
+    @Body() dto: CreateBookingHoldDto,
+  ): Promise<BookingHoldResponseDto> {
+    return this.bookingsService.createHold(currentUser, dto);
+  }
+
   @Post()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireRoles(PlatformRole.ADMIN, PlatformRole.SUPER_ADMIN)
+  @ApiBearerAuth('bearer')
   @ApiOperation({
     summary: '创建预约',
     description:
@@ -71,6 +123,39 @@ export class BookingsController {
     @Query() query: ListBookingsQueryDto,
   ): Promise<BookingListResponseDto> {
     return this.bookingsService.findAll(query);
+  }
+
+  @Get('mine')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireRoles(PlatformRole.GUARDIAN)
+  @ApiBearerAuth('bearer')
+  @ApiOperation({
+    summary: '家长查询自己的预约列表',
+    description: '家长端订单列表专用接口。',
+  })
+  @ApiQuery({ type: ListMyBookingsQueryDto })
+  @ApiOkResponse({ type: BookingListResponseDto })
+  findMine(
+    @CurrentUser() currentUser: AuthenticatedUserContext,
+    @Query() query: ListMyBookingsQueryDto,
+  ): Promise<BookingListResponseDto> {
+    return this.bookingsService.findMine(currentUser, query);
+  }
+
+  @Get('mine/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireRoles(PlatformRole.GUARDIAN)
+  @ApiBearerAuth('bearer')
+  @ApiOperation({
+    summary: '家长查询自己的预约详情',
+    description: '自动限制为当前登录家长自己的预约范围。',
+  })
+  @ApiOkResponse({ type: BookingResponseDto })
+  findMineOne(
+    @CurrentUser() currentUser: AuthenticatedUserContext,
+    @Param('id') id: string,
+  ): Promise<BookingResponseDto> {
+    return this.bookingsService.findMineOne(currentUser, id);
   }
 
   @Get('booking-no/:bookingNo')
@@ -123,7 +208,28 @@ export class BookingsController {
     return this.bookingsService.update(id, dto);
   }
 
+  @Patch(':id/respond')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireRoles(PlatformRole.TEACHER)
+  @ApiBearerAuth('bearer')
+  @ApiOperation({
+    summary: '老师统一响应预约',
+    description: '支持接单或拒单。',
+  })
+  @ApiBody({ type: RespondBookingDto })
+  @ApiOkResponse({ type: BookingResponseDto })
+  respond(
+    @CurrentUser() currentUser: AuthenticatedUserContext,
+    @Param('id') id: string,
+    @Body() dto: RespondBookingDto,
+  ): Promise<BookingResponseDto> {
+    return this.bookingsService.respond(currentUser, id, dto);
+  }
+
   @Patch(':id/accept')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireRoles(PlatformRole.TEACHER)
+  @ApiBearerAuth('bearer')
   @ApiOperation({
     summary: '老师接单',
     description: '老师确认接单后，预约状态会推进到待支付。',
@@ -135,13 +241,17 @@ export class BookingsController {
     type: BookingResponseDto,
   })
   accept(
+    @CurrentUser() currentUser: AuthenticatedUserContext,
     @Param('id') id: string,
     @Body() dto: AcceptBookingDto,
   ): Promise<BookingResponseDto> {
-    return this.bookingsService.accept(id, dto);
+    return this.bookingsService.accept(currentUser, id, dto);
   }
 
   @Patch(':id/guardian-confirm')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireRoles(PlatformRole.GUARDIAN)
+  @ApiBearerAuth('bearer')
   @ApiOperation({
     summary: '家长确认预约',
     description: '家长确认课前安排后写入确认时间，可补充最终计划摘要。',
@@ -153,13 +263,21 @@ export class BookingsController {
     type: BookingResponseDto,
   })
   guardianConfirm(
+    @CurrentUser() currentUser: AuthenticatedUserContext,
     @Param('id') id: string,
     @Body() dto: ConfirmBookingDto,
   ): Promise<BookingResponseDto> {
-    return this.bookingsService.guardianConfirm(id, dto);
+    return this.bookingsService.guardianConfirm(currentUser, id, dto);
   }
 
   @Patch(':id/payment')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireRoles(
+    PlatformRole.GUARDIAN,
+    PlatformRole.ADMIN,
+    PlatformRole.SUPER_ADMIN,
+  )
+  @ApiBearerAuth('bearer')
   @ApiOperation({
     summary: '更新预约支付状态',
     description:
@@ -172,13 +290,17 @@ export class BookingsController {
     type: BookingResponseDto,
   })
   updatePayment(
+    @CurrentUser() currentUser: AuthenticatedUserContext,
     @Param('id') id: string,
     @Body() dto: UpdateBookingPaymentDto,
   ): Promise<BookingResponseDto> {
-    return this.bookingsService.updatePayment(id, dto);
+    return this.bookingsService.updatePayment(currentUser, id, dto);
   }
 
   @Patch(':id/cancel')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireRoles(PlatformRole.GUARDIAN, PlatformRole.TEACHER)
+  @ApiBearerAuth('bearer')
   @ApiOperation({
     summary: '取消预约',
     description: '取消后会记录取消原因、取消时间和操作人。',
@@ -190,10 +312,53 @@ export class BookingsController {
     type: BookingResponseDto,
   })
   cancel(
+    @CurrentUser() currentUser: AuthenticatedUserContext,
     @Param('id') id: string,
     @Body() dto: CancelBookingDto,
   ): Promise<BookingResponseDto> {
-    return this.bookingsService.cancel(id, dto);
+    return this.bookingsService.cancel(id, dto, currentUser);
+  }
+
+  @Post(':id/reschedule')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireRoles(PlatformRole.GUARDIAN, PlatformRole.TEACHER)
+  @ApiBearerAuth('bearer')
+  @ApiOperation({
+    summary: '发起改约请求',
+    description: '家长和老师都可以对进行中的预约发起改约。',
+  })
+  @ApiBody({ type: CreateRescheduleRequestDto })
+  @ApiOkResponse({ type: BookingResponseDto })
+  createRescheduleRequest(
+    @CurrentUser() currentUser: AuthenticatedUserContext,
+    @Param('id') id: string,
+    @Body() dto: CreateRescheduleRequestDto,
+  ): Promise<BookingResponseDto> {
+    return this.bookingsService.createRescheduleRequest(currentUser, id, dto);
+  }
+
+  @Patch(':id/reschedule/:requestId/respond')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireRoles(PlatformRole.GUARDIAN, PlatformRole.TEACHER)
+  @ApiBearerAuth('bearer')
+  @ApiOperation({
+    summary: '响应改约请求',
+    description: '被动方接受或拒绝改约。',
+  })
+  @ApiBody({ type: RespondRescheduleRequestDto })
+  @ApiOkResponse({ type: BookingResponseDto })
+  respondRescheduleRequest(
+    @CurrentUser() currentUser: AuthenticatedUserContext,
+    @Param('id') id: string,
+    @Param('requestId') requestId: string,
+    @Body() dto: RespondRescheduleRequestDto,
+  ): Promise<BookingResponseDto> {
+    return this.bookingsService.respondRescheduleRequest(
+      currentUser,
+      id,
+      requestId,
+      dto,
+    );
   }
 
   @Delete(':id')

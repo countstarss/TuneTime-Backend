@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import {
   PlatformRole,
   TeacherEmploymentType,
@@ -185,6 +185,78 @@ export class AuthProfileIdsDto {
   studentProfileId!: string | null;
 }
 
+export class AuthTeacherProfileSnapshotDto {
+  @ApiPropertyOptional({ nullable: true })
+  displayName!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  bio!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, enum: TeacherEmploymentType })
+  employmentType!: TeacherEmploymentType | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  baseHourlyRate!: number | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  serviceRadiusKm!: number | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  acceptTrial!: boolean | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  maxTravelMinutes!: number | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  timezone!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  agreementAcceptedAt!: Date | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  agreementVersion!: string | null;
+}
+
+export class AuthGuardianProfileSnapshotDto {
+  @ApiPropertyOptional({ nullable: true })
+  displayName!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  phone!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  emergencyContactName!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  emergencyContactPhone!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  defaultServiceAddressId!: string | null;
+}
+
+export class AuthStudentProfileSnapshotDto {
+  @ApiPropertyOptional({ nullable: true })
+  displayName!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, enum: GradeLevel })
+  gradeLevel!: GradeLevel | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  dateOfBirth!: Date | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  schoolName!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  learningGoals!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  specialNeeds!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  timezone!: string | null;
+}
+
 export class TeacherOnboardingStateDto {
   @ApiProperty()
   profileExists!: boolean;
@@ -307,6 +379,24 @@ export class AuthUserDto {
 
   @ApiProperty({ type: AuthOnboardingStateDto })
   onboardingState!: AuthOnboardingStateDto;
+
+  @ApiPropertyOptional({
+    type: AuthTeacherProfileSnapshotDto,
+    nullable: true,
+  })
+  teacherProfile!: AuthTeacherProfileSnapshotDto | null;
+
+  @ApiPropertyOptional({
+    type: AuthGuardianProfileSnapshotDto,
+    nullable: true,
+  })
+  guardianProfile!: AuthGuardianProfileSnapshotDto | null;
+
+  @ApiPropertyOptional({
+    type: AuthStudentProfileSnapshotDto,
+    nullable: true,
+  })
+  studentProfile!: AuthStudentProfileSnapshotDto | null;
 }
 
 export class AuthResponseDto {
@@ -315,6 +405,66 @@ export class AuthResponseDto {
 
   @ApiProperty({ type: AuthUserDto })
   user!: AuthUserDto;
+}
+
+export class SelfBookingContextStudentDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  displayName!: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  gradeLevel!: string | null;
+}
+
+export class SelfBookingContextAddressDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  label!: string | null;
+
+  @ApiProperty()
+  contactName!: string;
+
+  @ApiProperty()
+  contactPhone!: string;
+
+  @ApiProperty()
+  province!: string;
+
+  @ApiProperty()
+  city!: string;
+
+  @ApiProperty()
+  district!: string;
+
+  @ApiProperty()
+  street!: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  building!: string | null;
+
+  @ApiProperty()
+  isDefault!: boolean;
+}
+
+export class SelfBookingContextDto {
+  @ApiPropertyOptional({ nullable: true })
+  guardianProfileId!: string | null;
+
+  @ApiProperty({
+    type: SelfBookingContextStudentDto,
+    isArray: true,
+  })
+  students!: SelfBookingContextStudentDto[];
+
+  @ApiProperty({
+    type: SelfBookingContextAddressDto,
+    isArray: true,
+  })
+  addresses!: SelfBookingContextAddressDto[];
 }
 
 export class AuthCodeDispatchResponseDto {
@@ -603,8 +753,7 @@ export class GuardianOnboardingAddressDto {
   building?: string;
 }
 
-export class SelfGuardianOnboardingUpdateDto
-  extends SelfGuardianProfileUpdateDto {
+export class SelfGuardianOnboardingUpdateDto extends SelfGuardianProfileUpdateDto {
   @ApiPropertyOptional({ type: GuardianOnboardingStudentDto })
   @IsOptional()
   @ValidateNested()
@@ -617,6 +766,23 @@ export class SelfGuardianOnboardingUpdateDto
   @Type(() => GuardianOnboardingAddressDto)
   defaultServiceAddress?: GuardianOnboardingAddressDto;
 }
+
+export class SelfGuardianStudentCreateDto extends GuardianOnboardingStudentDto {}
+
+export class SelfGuardianStudentUpdateDto extends PartialType(
+  SelfGuardianStudentCreateDto,
+) {}
+
+export class SelfGuardianAddressCreateDto extends GuardianOnboardingAddressDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isDefault?: boolean;
+}
+
+export class SelfGuardianAddressUpdateDto extends PartialType(
+  SelfGuardianAddressCreateDto,
+) {}
 
 export class SelfStudentProfileUpdateDto {
   @ApiPropertyOptional()

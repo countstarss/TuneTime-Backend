@@ -6,6 +6,7 @@ datasource db {
   provider = "postgresql"
 }
 
+// MARK: - 平台角色
 enum PlatformRole {
   SUPER_ADMIN
   ADMIN
@@ -14,17 +15,20 @@ enum PlatformRole {
   GUARDIAN
 }
 
+// MARK: - 用户状态
 enum UserStatus {
   ACTIVE
   SUSPENDED
   DELETED
 }
 
+// MARK: - 验证码渠道
 enum AuthCodeChannel {
   SMS
   EMAIL
 }
 
+// MARK: - 验证码用途
 enum AuthCodePurpose {
   LOGIN_OR_REGISTER
   PHONE_BIND
@@ -32,11 +36,13 @@ enum AuthCodePurpose {
   PASSWORD_RESET
 }
 
+// MARK: - 教师就业类型
 enum TeacherEmploymentType {
   FULL_TIME
   PART_TIME
 }
 
+// MARK: - 教师认证状态
 enum TeacherVerificationStatus {
   PENDING
   APPROVED
@@ -44,6 +50,7 @@ enum TeacherVerificationStatus {
   SUSPENDED
 }
 
+// MARK: - 周几
 enum Weekday {
   MONDAY
   TUESDAY
@@ -54,6 +61,7 @@ enum Weekday {
   SUNDAY
 }
 
+// MARK: - 年级等级
 enum GradeLevel {
   KINDERGARTEN
   PRIMARY
@@ -63,6 +71,7 @@ enum GradeLevel {
   ADULT
 }
 
+// MARK: - 监护人关系
 enum GuardianRelation {
   FATHER
   MOTHER
@@ -71,6 +80,7 @@ enum GuardianRelation {
   OTHER
 }
 
+// MARK: - 预约状态
 enum BookingStatus {
   PENDING_ACCEPTANCE
   PENDING_PAYMENT
@@ -82,6 +92,7 @@ enum BookingStatus {
   EXPIRED
 }
 
+// MARK: - 预约取消原因
 enum BookingCancellationReason {
   STUDENT_NO_SHOW
   TEACHER_NO_SHOW
@@ -93,6 +104,7 @@ enum BookingCancellationReason {
   OTHER
 }
 
+// MARK: - 支付状态
 enum PaymentStatus {
   UNPAID
   PAID
@@ -101,6 +113,7 @@ enum PaymentStatus {
   FAILED
 }
 
+// MARK: - 支付意图状态
 enum PaymentIntentStatus {
   REQUIRES_PAYMENT
   PROCESSING
@@ -110,16 +123,35 @@ enum PaymentIntentStatus {
   REFUNDED
 }
 
+// MARK: - 预约占位状态
+enum BookingHoldStatus {
+  ACTIVE
+  CONSUMED
+  EXPIRED
+  CANCELLED
+}
+
+// MARK: - 改约请求状态
+enum RescheduleRequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
+}
+
+// MARK: - 货币
 enum Currency {
   CNY
 }
 
+// MARK: - 钱包状态
 enum WalletStatus {
   ACTIVE
   FROZEN
   CLOSED
 }
 
+// MARK: - 钱包交易类型
 enum WalletTransactionType {
   TOPUP
   BOOKING_HOLD
@@ -131,6 +163,7 @@ enum WalletTransactionType {
   ADJUSTMENT
 }
 
+// MARK: - 账本状态
 enum LedgerStatus {
   PENDING
   SETTLED
@@ -138,11 +171,13 @@ enum LedgerStatus {
   REVERSED
 }
 
+// MARK: - 交易方向
 enum TransactionDirection {
   IN
   OUT
 }
 
+// MARK: - 交易参考类型
 enum TransactionReferenceType {
   BOOKING
   PAYMENT
@@ -150,6 +185,7 @@ enum TransactionReferenceType {
   MANUAL
 }
 
+// MARK: - 课程出勤状态
 enum LessonAttendanceStatus {
   SCHEDULED
   ONGOING
@@ -159,6 +195,7 @@ enum LessonAttendanceStatus {
   CANCELLED
 }
 
+// MARK: - 提现状态
 enum PayoutStatus {
   PENDING
   APPROVED
@@ -168,12 +205,14 @@ enum PayoutStatus {
   CANCELLED
 }
 
+// MARK: - 提现账户类型
 enum PayoutAccountType {
   ALIPAY
   WECHAT
   BANK_CARD
 }
 
+// MARK: - 凭证类型
 enum CredentialType {
   TEACHING_LICENSE
   ID_CARD
@@ -183,12 +222,14 @@ enum CredentialType {
   OTHER
 }
 
+// MARK: - 文档审核状态
 enum DocumentReviewStatus {
   PENDING
   APPROVED
   REJECTED
 }
 
+// MARK: - CRM 线索状态
 enum CrmLeadStatus {
   NEW
   CONTACTED
@@ -197,6 +238,7 @@ enum CrmLeadStatus {
   LOST
 }
 
+// MARK: - CRM 商机阶段
 enum CrmOpportunityStage {
   NEW
   QUALIFIED
@@ -206,6 +248,7 @@ enum CrmOpportunityStage {
   LOST
 }
 
+// MARK: - CRM 任务状态
 enum CrmTaskStatus {
   TODO
   IN_PROGRESS
@@ -213,6 +256,7 @@ enum CrmTaskStatus {
   CANCELLED
 }
 
+// MARK: - CRM 任务优先级
 enum CrmTaskPriority {
   LOW
   MEDIUM
@@ -220,6 +264,7 @@ enum CrmTaskPriority {
   URGENT
 }
 
+// MARK: - CRM 活动类型
 enum CrmActivityType {
   NOTE
   CALL
@@ -228,6 +273,7 @@ enum CrmActivityType {
   SYSTEM
 }
 
+// MARK: - CRM 案例状态
 enum CrmCaseStatus {
   OPEN
   IN_PROGRESS
@@ -236,6 +282,7 @@ enum CrmCaseStatus {
   CLOSED
 }
 
+// MARK: - CRM 案例优先级
 enum CrmCasePriority {
   LOW
   MEDIUM
@@ -243,6 +290,7 @@ enum CrmCasePriority {
   URGENT
 }
 
+// MARK: - CRM 案例分类
 enum CrmCaseCategory {
   SCHEDULE_CHANGE
   COMPLAINT
@@ -252,6 +300,7 @@ enum CrmCaseCategory {
   OTHER
 }
 
+// MARK: - CRM 动作运行状态
 enum CrmActionRunStatus {
   PREVIEW
   APPROVAL_REQUIRED
@@ -260,30 +309,32 @@ enum CrmActionRunStatus {
   FAILED
 }
 
+// MARK: - CRM 动作风险等级
 enum CrmActionRiskLevel {
   LOW
   MEDIUM
   HIGH
 }
 
+// MARK: - 用户
 model User {
-  id              String     @id @default(cuid())
-  name            String?
-  email           String?    @unique
-  emailVerified   DateTime?  @map("email_verified")
-  image           String?
-  phone           String?    @unique
-  phoneVerifiedAt DateTime?  @map("phone_verified_at")
-  realNameVerifiedAt DateTime? @map("real_name_verified_at")
-  realNameProvider   String?   @map("real_name_provider")
-  realNameVerifiedName String? @map("real_name_verified_name")
-  realNameIdNumberMasked String? @map("real_name_id_number_masked")
-  status          UserStatus @default(ACTIVE)
-  timezone        String     @default("Asia/Shanghai")
-  locale          String     @default("zh-CN")
-  deletedAt       DateTime?  @map("deleted_at")
-  createdAt       DateTime   @default(now()) @map("created_at")
-  updatedAt       DateTime   @updatedAt @map("updated_at")
+  id                     String     @id @default(cuid())
+  name                   String?
+  email                  String?    @unique
+  emailVerified          DateTime?  @map("email_verified")
+  image                  String?
+  phone                  String?    @unique
+  phoneVerifiedAt        DateTime?  @map("phone_verified_at")
+  realNameVerifiedAt     DateTime?  @map("real_name_verified_at")
+  realNameProvider       String?    @map("real_name_provider")
+  realNameVerifiedName   String?    @map("real_name_verified_name")
+  realNameIdNumberMasked String?    @map("real_name_id_number_masked")
+  status                 UserStatus @default(ACTIVE)
+  timezone               String     @default("Asia/Shanghai")
+  locale                 String     @default("zh-CN")
+  deletedAt              DateTime?  @map("deleted_at")
+  createdAt              DateTime   @default(now()) @map("created_at")
+  updatedAt              DateTime   @updatedAt @map("updated_at")
 
   accounts                       Account[]
   authVerificationCodes          AuthVerificationCode[]
@@ -297,17 +348,18 @@ model User {
   addresses                      Address[]
   realNameVerificationSessions   RealNameVerificationSession[]
   wallet                         Wallet?
-  walletTransactions             WalletTransaction[]        @relation("TxnCreatedBy")
-  bookingsCancelled              Booking[]                  @relation("BookingCancelledBy")
-  paymentIntents                 PaymentIntent[]            @relation("PaymentPayer")
-  adminAuditLogs                 AdminAuditLog[]            @relation("AuditActor")
-  teacherAvailabilityBlocksAdded TeacherAvailabilityBlock[] @relation("AvailabilityBlockCreatedBy")
-  teacherCredentialsReviewed     TeacherCredential[]        @relation("CredentialReviewedBy")
+  walletTransactions             WalletTransaction[]           @relation("TxnCreatedBy")
+  bookingsCancelled              Booking[]                     @relation("BookingCancelledBy")
+  paymentIntents                 PaymentIntent[]               @relation("PaymentPayer")
+  adminAuditLogs                 AdminAuditLog[]               @relation("AuditActor")
+  teacherAvailabilityBlocksAdded TeacherAvailabilityBlock[]    @relation("AvailabilityBlockCreatedBy")
+  teacherCredentialsReviewed     TeacherCredential[]           @relation("CredentialReviewedBy")
 
   @@index([status])
   @@map("users")
 }
 
+// MARK: - 密码凭证
 model PasswordCredential {
   id           String   @id @default(cuid())
   userId       String   @unique @map("user_id")
@@ -320,6 +372,7 @@ model PasswordCredential {
   @@map("password_credentials")
 }
 
+// MARK: - 账户
 model Account {
   id                String    @id @default(cuid())
   userId            String    @map("user_id")
@@ -348,6 +401,7 @@ model Account {
   @@map("accounts")
 }
 
+// MARK: - 验证码
 model AuthVerificationCode {
   id           String          @id @default(cuid())
   userId       String?         @map("user_id")
@@ -370,6 +424,7 @@ model AuthVerificationCode {
   @@map("auth_verification_codes")
 }
 
+// MARK: - 会话
 model Session {
   id           String   @id @default(cuid())
   sessionToken String   @unique @map("session_token")
@@ -382,6 +437,7 @@ model Session {
   @@map("sessions")
 }
 
+// MARK: - 验证令牌
 model VerificationToken {
   identifier String
   token      String   @unique
@@ -391,6 +447,7 @@ model VerificationToken {
   @@map("verification_tokens")
 }
 
+// MARK: - 认证器
 model Authenticator {
   credentialID         String  @map("credential_id")
   userId               String  @map("user_id")
@@ -408,6 +465,7 @@ model Authenticator {
   @@map("authenticators")
 }
 
+// MARK: - 用户角色
 model UserRole {
   id        String       @id @default(cuid())
   userId    String       @map("user_id")
@@ -423,6 +481,7 @@ model UserRole {
   @@map("user_roles")
 }
 
+// MARK: - 科目
 model Subject {
   id          String   @id @default(cuid())
   code        String   @unique
@@ -439,6 +498,7 @@ model Subject {
   @@map("subjects")
 }
 
+// MARK: - 教师资料
 model TeacherProfile {
   id                    String                    @id @default(cuid())
   userId                String                    @unique @map("user_id")
@@ -479,6 +539,7 @@ model TeacherProfile {
   @@map("teacher_profiles")
 }
 
+// MARK: - 教师科目
 model TeacherSubject {
   id               String   @id @default(cuid())
   teacherProfileId String   @map("teacher_profile_id")
@@ -499,6 +560,7 @@ model TeacherSubject {
   @@map("teacher_subjects")
 }
 
+// MARK: - 教师服务区域
 model TeacherServiceArea {
   id               String   @id @default(cuid())
   teacherProfileId String   @map("teacher_profile_id")
@@ -516,6 +578,7 @@ model TeacherServiceArea {
   @@map("teacher_service_areas")
 }
 
+// MARK: - 教师可用性规则
 model TeacherAvailabilityRule {
   id                  String    @id @default(cuid())
   teacherProfileId    String    @map("teacher_profile_id")
@@ -536,6 +599,7 @@ model TeacherAvailabilityRule {
   @@map("teacher_availability_rules")
 }
 
+// MARK: - 教师可用性块
 model TeacherAvailabilityBlock {
   id               String   @id @default(cuid())
   teacherProfileId String   @map("teacher_profile_id")
@@ -554,6 +618,7 @@ model TeacherAvailabilityBlock {
   @@map("teacher_availability_blocks")
 }
 
+// MARK: - 教师凭证
 model TeacherCredential {
   id               String               @id @default(cuid())
   teacherProfileId String               @map("teacher_profile_id")
@@ -578,19 +643,20 @@ model TeacherCredential {
   @@map("teacher_credentials")
 }
 
+// MARK: - 学生资料
 model StudentProfile {
-  id            String      @id @default(cuid())
-  userId        String?     @unique @map("user_id")
-  displayName   String      @map("display_name")
-  gradeLevel    GradeLevel? @map("grade_level")
-  dateOfBirth   DateTime?   @map("date_of_birth") @db.Date
-  schoolName    String?     @map("school_name")
-  learningGoals String?     @map("learning_goals")
-  specialNeeds  String?     @map("special_needs")
-  timezone      String      @default("Asia/Shanghai")
-  onboardingCompletedAt DateTime? @map("onboarding_completed_at")
-  createdAt     DateTime    @default(now()) @map("created_at")
-  updatedAt     DateTime    @updatedAt @map("updated_at")
+  id                    String      @id @default(cuid())
+  userId                String?     @unique @map("user_id")
+  displayName           String      @map("display_name")
+  gradeLevel            GradeLevel? @map("grade_level")
+  dateOfBirth           DateTime?   @map("date_of_birth") @db.Date
+  schoolName            String?     @map("school_name")
+  learningGoals         String?     @map("learning_goals")
+  specialNeeds          String?     @map("special_needs")
+  timezone              String      @default("Asia/Shanghai")
+  onboardingCompletedAt DateTime?   @map("onboarding_completed_at")
+  createdAt             DateTime    @default(now()) @map("created_at")
+  updatedAt             DateTime    @updatedAt @map("updated_at")
 
   user         User?             @relation(fields: [userId], references: [id], onDelete: Cascade)
   guardians    StudentGuardian[]
@@ -602,17 +668,18 @@ model StudentProfile {
   @@map("student_profiles")
 }
 
+// MARK: - 监护人资料
 model GuardianProfile {
-  id                      String   @id @default(cuid())
-  userId                  String   @unique @map("user_id")
-  displayName             String   @map("display_name")
+  id                      String    @id @default(cuid())
+  userId                  String    @unique @map("user_id")
+  displayName             String    @map("display_name")
   phone                   String?
-  emergencyContactName    String?  @map("emergency_contact_name")
-  emergencyContactPhone   String?  @map("emergency_contact_phone")
-  defaultServiceAddressId String?  @map("default_service_address_id")
+  emergencyContactName    String?   @map("emergency_contact_name")
+  emergencyContactPhone   String?   @map("emergency_contact_phone")
+  defaultServiceAddressId String?   @map("default_service_address_id")
   onboardingCompletedAt   DateTime? @map("onboarding_completed_at")
-  createdAt               DateTime @default(now()) @map("created_at")
-  updatedAt               DateTime @updatedAt @map("updated_at")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
 
   user                  User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   students              StudentGuardian[]
@@ -624,6 +691,7 @@ model GuardianProfile {
   @@map("guardian_profiles")
 }
 
+// MARK: - 学生监护人关系
 model StudentGuardian {
   id                String           @id @default(cuid())
   studentProfileId  String           @map("student_profile_id")
@@ -643,6 +711,7 @@ model StudentGuardian {
   @@map("student_guardians")
 }
 
+// MARK: - 地址
 model Address {
   id           String   @id @default(cuid())
   userId       String   @map("user_id")
@@ -670,18 +739,19 @@ model Address {
   @@map("addresses")
 }
 
+// MARK: - 实名认证会话
 model RealNameVerificationSession {
-  id            String   @id @default(cuid())
-  userId        String   @map("user_id")
+  id            String    @id @default(cuid())
+  userId        String    @map("user_id")
   provider      String
-  status        String   @default("PENDING")
-  ticket        String?  @unique
-  startUrl      String?  @map("start_url")
-  resultPayload Json?    @map("result_payload")
+  status        String    @default("PENDING")
+  ticket        String?   @unique
+  startUrl      String?   @map("start_url")
+  resultPayload Json?     @map("result_payload")
   verifiedAt    DateTime? @map("verified_at")
   expiresAt     DateTime? @map("expires_at")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -689,6 +759,7 @@ model RealNameVerificationSession {
   @@map("real_name_verification_sessions")
 }
 
+// MARK: - 预约
 model Booking {
   id                  String                     @id @default(cuid())
   bookingNo           String                     @unique @map("booking_no")
@@ -717,6 +788,7 @@ model Booking {
   currency            Currency                   @default(CNY)
   paymentStatus       PaymentStatus              @default(UNPAID) @map("payment_status")
   paymentDueAt        DateTime?                  @map("payment_due_at")
+  statusRemark        String?                    @map("status_remark")
   planSummary         String?                    @map("plan_summary")
   notes               String?
   createdAt           DateTime                   @default(now()) @map("created_at")
@@ -731,6 +803,7 @@ model Booking {
   lesson             Lesson?
   paymentIntent      PaymentIntent?
   review             TeacherReview?
+  rescheduleRequests RescheduleRequest[]
   walletTransactions WalletTransaction[]
 
   @@index([teacherProfileId, startAt, status])
@@ -743,6 +816,52 @@ model Booking {
   @@map("bookings")
 }
 
+// MARK: - 预约占位
+model BookingHold {
+  id                String            @id @default(cuid())
+  teacherProfileId  String            @map("teacher_profile_id")
+  studentProfileId  String            @map("student_profile_id")
+  guardianProfileId String?           @map("guardian_profile_id")
+  subjectId         String            @map("subject_id")
+  serviceAddressId  String            @map("service_address_id")
+  startAt           DateTime          @map("start_at")
+  endAt             DateTime          @map("end_at")
+  timezone          String            @default("Asia/Shanghai")
+  status            BookingHoldStatus @default(ACTIVE)
+  expiresAt         DateTime          @map("expires_at")
+  createdByUserId   String            @map("created_by_user_id")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+
+  @@index([teacherProfileId, startAt, endAt, status])
+  @@index([createdByUserId, status, expiresAt])
+  @@index([guardianProfileId, status])
+  @@map("booking_holds")
+}
+
+// MARK: - 改约请求
+model RescheduleRequest {
+  id                String                  @id @default(cuid())
+  bookingId         String                  @map("booking_id")
+  initiatorRole     PlatformRole            @map("initiator_role")
+  initiatorUserId   String                  @map("initiator_user_id")
+  proposedStartAt   DateTime                @map("proposed_start_at")
+  proposedEndAt     DateTime                @map("proposed_end_at")
+  reason            String?
+  status            RescheduleRequestStatus @default(PENDING)
+  respondedAt       DateTime?               @map("responded_at")
+  respondedByUserId String?                 @map("responded_by_user_id")
+  createdAt         DateTime                @default(now()) @map("created_at")
+  updatedAt         DateTime                @updatedAt @map("updated_at")
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId, status, createdAt])
+  @@index([initiatorUserId, status, createdAt])
+  @@map("reschedule_requests")
+}
+
+// MARK: - 课程
 model Lesson {
   id                  String                 @id @default(cuid())
   bookingId           String                 @unique @map("booking_id")
@@ -776,6 +895,7 @@ model Lesson {
   @@map("lessons")
 }
 
+// MARK: - 教师评价
 model TeacherReview {
   id                       String   @id @default(cuid())
   bookingId                String   @unique @map("booking_id")
@@ -802,6 +922,7 @@ model TeacherReview {
   @@map("teacher_reviews")
 }
 
+// MARK: - 钱包
 model Wallet {
   id               String       @id @default(cuid())
   ownerUserId      String       @unique @map("owner_user_id")
@@ -821,6 +942,7 @@ model Wallet {
   @@map("wallets")
 }
 
+// MARK: - 支付意图
 model PaymentIntent {
   id                String              @id @default(cuid())
   bookingId         String              @unique @map("booking_id")
@@ -846,6 +968,7 @@ model PaymentIntent {
   @@map("payment_intents")
 }
 
+// MARK: - 教师提现账户
 model TeacherPayoutAccount {
   id               String            @id @default(cuid())
   teacherProfileId String            @map("teacher_profile_id")
@@ -866,6 +989,7 @@ model TeacherPayoutAccount {
   @@map("teacher_payout_accounts")
 }
 
+// MARK: - 提现
 model Payout {
   id               String       @id @default(cuid())
   teacherProfileId String       @map("teacher_profile_id")
@@ -892,6 +1016,7 @@ model Payout {
   @@map("payouts")
 }
 
+// MARK: - 钱包交易
 model WalletTransaction {
   id              String                   @id @default(cuid())
   walletId        String                   @map("wallet_id")
@@ -927,6 +1052,7 @@ model WalletTransaction {
   @@map("wallet_transactions")
 }
 
+// MARK: - CRM 线索
 model CrmLead {
   id                         String        @id @default(cuid())
   fullName                   String        @map("full_name")
@@ -960,6 +1086,7 @@ model CrmLead {
   @@map("crm_leads")
 }
 
+// MARK: - CRM 商机
 model CrmOpportunity {
   id                String              @id @default(cuid())
   title             String
@@ -993,6 +1120,7 @@ model CrmOpportunity {
   @@map("crm_opportunities")
 }
 
+// MARK: - CRM 任务
 model CrmTask {
   id                String          @id @default(cuid())
   title             String
@@ -1021,6 +1149,7 @@ model CrmTask {
   @@map("crm_tasks")
 }
 
+// MARK: - CRM 活动
 model CrmActivity {
   id                String          @id @default(cuid())
   type              CrmActivityType
@@ -1045,6 +1174,7 @@ model CrmActivity {
   @@map("crm_activities")
 }
 
+// MARK: - CRM 案例
 model CrmCase {
   id                String          @id @default(cuid())
   title             String
@@ -1078,6 +1208,7 @@ model CrmCase {
   @@map("crm_cases")
 }
 
+// MARK: - CRM 动作运行
 model CrmActionRun {
   id               String             @id @default(cuid())
   instruction      String?
@@ -1100,6 +1231,7 @@ model CrmActionRun {
   @@map("crm_action_runs")
 }
 
+// MARK: - 管理员审计日志
 model AdminAuditLog {
   id          String   @id @default(cuid())
   actorUserId String   @map("actor_user_id")

@@ -7,7 +7,9 @@ import {
 } from '@nestjs/common';
 import {
   GuardianRelation,
+  GradeLevel,
   PlatformRole,
+  Prisma,
   TeacherEmploymentType,
   TeacherVerificationStatus,
   UserStatus,
@@ -25,6 +27,27 @@ import { WechatAuthService } from './wechat-auth.service';
 import { ProfileBootstrapService } from './profile-bootstrap.service';
 import { normalizePhone, sanitizeDisplayName } from './auth.utils';
 import { RealNameVerificationService } from './real-name-verification.service';
+import { StudentResponseDto } from '../students/dto/student-response.dto';
+import { AddressResponseDto } from '../addresses/dto/address-response.dto';
+
+const guardianStudentInclude = {
+  guardians: {
+    include: {
+      guardianProfile: {
+        select: {
+          id: true,
+          displayName: true,
+          phone: true,
+        },
+      },
+    },
+    orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+  },
+} satisfies Prisma.StudentProfileInclude;
+
+type GuardianLinkedStudent = Prisma.StudentProfileGetPayload<{
+  include: typeof guardianStudentInclude;
+}>;
 
 @Injectable()
 export class AuthService {
@@ -88,7 +111,9 @@ export class AuthService {
             serviceRadiusKm: true,
             acceptTrial: true,
             maxTravelMinutes: true,
+            timezone: true,
             agreementAcceptedAt: true,
+            agreementVersion: true,
             verificationStatus: true,
             onboardingCompletedAt: true,
             subjects: {
@@ -140,6 +165,7 @@ export class AuthService {
             schoolName: true,
             learningGoals: true,
             specialNeeds: true,
+            timezone: true,
             onboardingCompletedAt: true,
           },
         },
@@ -294,7 +320,10 @@ export class AuthService {
     ];
     const studentOptionalItems = [
       { label: '出生日期', completed: !!user.studentProfile?.dateOfBirth },
-      { label: '学校信息', completed: !!user.studentProfile?.schoolName?.trim() },
+      {
+        label: '学校信息',
+        completed: !!user.studentProfile?.schoolName?.trim(),
+      },
       {
         label: '学习目标',
         completed: !!user.studentProfile?.learningGoals?.trim(),
@@ -365,6 +394,53 @@ export class AuthService {
           canBookLessons: studentCompletion.missingRequiredItems.length === 0,
         },
       },
+      teacherProfile: user.teacherProfile
+        ? {
+            displayName: user.teacherProfile.displayName ?? null,
+            bio: user.teacherProfile.bio ?? null,
+            employmentType: user.teacherProfile.employmentType ?? null,
+            baseHourlyRate:
+              user.teacherProfile.baseHourlyRate != null
+                ? Number(user.teacherProfile.baseHourlyRate)
+                : null,
+            serviceRadiusKm:
+              user.teacherProfile.serviceRadiusKm != null
+                ? Number(user.teacherProfile.serviceRadiusKm)
+                : null,
+            acceptTrial:
+              typeof user.teacherProfile.acceptTrial === 'boolean'
+                ? user.teacherProfile.acceptTrial
+                : null,
+            maxTravelMinutes: user.teacherProfile.maxTravelMinutes ?? null,
+            timezone: user.teacherProfile.timezone ?? null,
+            agreementAcceptedAt:
+              user.teacherProfile.agreementAcceptedAt ?? null,
+            agreementVersion: user.teacherProfile.agreementVersion ?? null,
+          }
+        : null,
+      guardianProfile: user.guardianProfile
+        ? {
+            displayName: user.guardianProfile.displayName ?? null,
+            phone: user.guardianProfile.phone ?? null,
+            emergencyContactName:
+              user.guardianProfile.emergencyContactName ?? null,
+            emergencyContactPhone:
+              user.guardianProfile.emergencyContactPhone ?? null,
+            defaultServiceAddressId:
+              user.guardianProfile.defaultServiceAddressId ?? null,
+          }
+        : null,
+      studentProfile: user.studentProfile
+        ? {
+            displayName: user.studentProfile.displayName ?? null,
+            gradeLevel: user.studentProfile.gradeLevel ?? null,
+            dateOfBirth: user.studentProfile.dateOfBirth ?? null,
+            schoolName: user.studentProfile.schoolName ?? null,
+            learningGoals: user.studentProfile.learningGoals ?? null,
+            specialNeeds: user.studentProfile.specialNeeds ?? null,
+            timezone: user.studentProfile.timezone ?? null,
+          }
+        : null,
     };
   }
 
@@ -598,6 +674,416 @@ export class AuthService {
     return profile;
   }
 
+  private async getGuardianProfileOrThrow(userId: string) {
+    const guardian = await this.prisma.guardianProfile.findUnique({
+      where: { userId },
+      select: {
+        id: true,
+        userId: true,
+        defaultServiceAddressId: true,
+      },
+    });
+
+    if (!guardian) {
+      throw new NotFoundException('Guardian profile not found');
+    }
+
+    return guardian;
+  }
+
+  private mapStudentResponse(
+    student: GuardianLinkedStudent,
+  ): StudentResponseDto {
+    return {
+      id: student.id,
+      userId: student.userId,
+      displayName: student.displayName,
+      gradeLevel: student.gradeLevel,
+      dateOfBirth: student.dateOfBirth,
+      schoolName: student.schoolName,
+      learningGoals: student.learningGoals,
+      specialNeeds: student.specialNeeds,
+      timezone: student.timezone,
+      guardians: student.guardians.map((relation) => ({
+        guardianProfileId: relation.guardianProfileId,
+        displayName: relation.guardianProfile.displayName,
+        phone: relation.guardianProfile.phone,
+        relation: relation.relation,
+        isPrimary: relation.isPrimary,
+        canBook: relation.canBook,
+        canViewRecords: relation.canViewRecords,
+      })),
+      createdAt: student.createdAt,
+      updatedAt: student.updatedAt,
+    };
+  }
+
+  private mapAddressResponse(address: {
+    id: string;
+    userId: string;
+    label: string | null;
+    contactName: string;
+    contactPhone: string;
+    country: string;
+    province: string;
+    city: string;
+    district: string;
+    street: string;
+    building: string | null;
+    latitude: { toNumber(): number } | null;
+    longitude: { toNumber(): number } | null;
+    isDefault: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+  }): AddressResponseDto {
+    return {
+      id: address.id,
+      userId: address.userId,
+      label: address.label,
+      contactName: address.contactName,
+      contactPhone: address.contactPhone,
+      country: address.country,
+      province: address.province,
+      city: address.city,
+      district: address.district,
+      street: address.street,
+      building: address.building,
+      latitude: address.latitude ? address.latitude.toNumber() : null,
+      longitude: address.longitude ? address.longitude.toNumber() : null,
+      isDefault: address.isDefault,
+      createdAt: address.createdAt,
+      updatedAt: address.updatedAt,
+    };
+  }
+
+  private getGuardianStudentInclude() {
+    return guardianStudentInclude;
+  }
+
+  async getSelfBookingContext(userId: string) {
+    const guardianProfile = await this.prisma.guardianProfile.findUnique({
+      where: { userId },
+      select: {
+        id: true,
+        students: {
+          orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+          select: {
+            studentProfile: {
+              select: {
+                id: true,
+                displayName: true,
+                gradeLevel: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const addresses = await this.prisma.address.findMany({
+      where: { userId },
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+      select: {
+        id: true,
+        label: true,
+        contactName: true,
+        contactPhone: true,
+        province: true,
+        city: true,
+        district: true,
+        street: true,
+        building: true,
+        isDefault: true,
+      },
+    });
+
+    return {
+      guardianProfileId: guardianProfile?.id ?? null,
+      students: (guardianProfile?.students ?? [])
+        .map((item) => item.studentProfile)
+        .filter((item): item is NonNullable<typeof item> => item != null),
+      addresses,
+    };
+  }
+
+  async listSelfGuardianStudents(
+    userId: string,
+  ): Promise<StudentResponseDto[]> {
+    const guardian = await this.getGuardianProfileOrThrow(userId);
+    const students = await this.prisma.studentProfile.findMany({
+      where: {
+        guardians: {
+          some: {
+            guardianProfileId: guardian.id,
+          },
+        },
+      },
+      include: this.getGuardianStudentInclude(),
+      orderBy: [{ createdAt: 'asc' }],
+    });
+
+    return students.map((student) => this.mapStudentResponse(student));
+  }
+
+  async createSelfGuardianStudent(
+    userId: string,
+    dto: {
+      displayName: string;
+      gradeLevel: GradeLevel;
+      dateOfBirth?: string;
+      schoolName?: string;
+      learningGoals?: string;
+      specialNeeds?: string;
+    },
+  ): Promise<StudentResponseDto> {
+    const guardian = await this.getGuardianProfileOrThrow(userId);
+    const existingPrimary = await this.prisma.studentGuardian.findFirst({
+      where: { guardianProfileId: guardian.id, isPrimary: true },
+      select: { studentProfileId: true },
+    });
+
+    const student = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.studentProfile.create({
+        data: {
+          displayName: sanitizeDisplayName(dto.displayName, '孩子'),
+          gradeLevel: dto.gradeLevel,
+          dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
+          schoolName: dto.schoolName?.trim() || null,
+          learningGoals: dto.learningGoals?.trim() || null,
+          specialNeeds: dto.specialNeeds?.trim() || null,
+          timezone: 'Asia/Shanghai',
+        },
+        select: { id: true },
+      });
+
+      await tx.studentGuardian.create({
+        data: {
+          guardianProfileId: guardian.id,
+          studentProfileId: created.id,
+          relation: GuardianRelation.OTHER,
+          isPrimary: !existingPrimary,
+          canBook: true,
+          canViewRecords: true,
+        },
+      });
+
+      return tx.studentProfile.findUniqueOrThrow({
+        where: { id: created.id },
+        include: this.getGuardianStudentInclude(),
+      });
+    });
+
+    return this.mapStudentResponse(student);
+  }
+
+  async updateSelfGuardianStudent(
+    userId: string,
+    studentId: string,
+    dto: {
+      displayName?: string;
+      gradeLevel?: GradeLevel;
+      dateOfBirth?: string;
+      schoolName?: string;
+      learningGoals?: string;
+      specialNeeds?: string;
+    },
+  ): Promise<StudentResponseDto> {
+    const guardian = await this.getGuardianProfileOrThrow(userId);
+    const relation = await this.prisma.studentGuardian.findFirst({
+      where: {
+        guardianProfileId: guardian.id,
+        studentProfileId: studentId,
+      },
+      select: { id: true },
+    });
+
+    if (!relation) {
+      throw new BadRequestException(
+        'student does not belong to current guardian',
+      );
+    }
+
+    const student = await this.prisma.studentProfile.update({
+      where: { id: studentId },
+      data: {
+        ...(dto.displayName !== undefined
+          ? { displayName: sanitizeDisplayName(dto.displayName, '孩子') }
+          : {}),
+        ...(dto.gradeLevel !== undefined ? { gradeLevel: dto.gradeLevel } : {}),
+        ...(dto.dateOfBirth !== undefined
+          ? { dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null }
+          : {}),
+        ...(dto.schoolName !== undefined
+          ? { schoolName: dto.schoolName?.trim() || null }
+          : {}),
+        ...(dto.learningGoals !== undefined
+          ? { learningGoals: dto.learningGoals?.trim() || null }
+          : {}),
+        ...(dto.specialNeeds !== undefined
+          ? { specialNeeds: dto.specialNeeds?.trim() || null }
+          : {}),
+      },
+      include: this.getGuardianStudentInclude(),
+    });
+
+    return this.mapStudentResponse(student);
+  }
+
+  async listSelfGuardianAddresses(
+    userId: string,
+  ): Promise<AddressResponseDto[]> {
+    await this.getGuardianProfileOrThrow(userId);
+    const addresses = await this.prisma.address.findMany({
+      where: { userId },
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+    });
+
+    return addresses.map((address) => this.mapAddressResponse(address));
+  }
+
+  async createSelfGuardianAddress(
+    userId: string,
+    dto: {
+      label?: string;
+      contactName: string;
+      contactPhone: string;
+      country?: string;
+      province: string;
+      city: string;
+      district: string;
+      street: string;
+      building?: string;
+      isDefault?: boolean;
+    },
+  ): Promise<AddressResponseDto> {
+    const guardian = await this.getGuardianProfileOrThrow(userId);
+    const existingCount = await this.prisma.address.count({
+      where: { userId },
+    });
+    const shouldBeDefault = dto.isDefault ?? existingCount === 0;
+
+    const address = await this.prisma.$transaction(async (tx) => {
+      if (shouldBeDefault) {
+        await tx.address.updateMany({
+          where: { userId },
+          data: { isDefault: false },
+        });
+      }
+
+      const created = await tx.address.create({
+        data: {
+          userId,
+          label: dto.label?.trim() || '上课地址',
+          contactName: dto.contactName.trim(),
+          contactPhone: normalizePhone(dto.contactPhone),
+          country: dto.country?.trim() || 'CN',
+          province: dto.province.trim(),
+          city: dto.city.trim(),
+          district: dto.district.trim(),
+          street: dto.street.trim(),
+          building: dto.building?.trim() || null,
+          isDefault: shouldBeDefault,
+        },
+      });
+
+      if (shouldBeDefault) {
+        await tx.guardianProfile.update({
+          where: { id: guardian.id },
+          data: { defaultServiceAddressId: created.id },
+        });
+      }
+
+      return created;
+    });
+
+    return this.mapAddressResponse(address);
+  }
+
+  async updateSelfGuardianAddress(
+    userId: string,
+    addressId: string,
+    dto: {
+      label?: string;
+      contactName?: string;
+      contactPhone?: string;
+      country?: string;
+      province?: string;
+      city?: string;
+      district?: string;
+      street?: string;
+      building?: string;
+      isDefault?: boolean;
+    },
+  ): Promise<AddressResponseDto> {
+    const guardian = await this.getGuardianProfileOrThrow(userId);
+    const current = await this.prisma.address.findUnique({
+      where: { id: addressId },
+    });
+
+    if (!current || current.userId !== userId) {
+      throw new BadRequestException(
+        'address does not belong to current guardian',
+      );
+    }
+
+    const nextIsDefault = dto.isDefault ?? current.isDefault;
+
+    const address = await this.prisma.$transaction(async (tx) => {
+      if (nextIsDefault) {
+        await tx.address.updateMany({
+          where: { userId },
+          data: { isDefault: false },
+        });
+      }
+
+      const updated = await tx.address.update({
+        where: { id: addressId },
+        data: {
+          ...(dto.label !== undefined
+            ? { label: dto.label?.trim() || null }
+            : {}),
+          ...(dto.contactName !== undefined
+            ? { contactName: dto.contactName.trim() }
+            : {}),
+          ...(dto.contactPhone !== undefined
+            ? { contactPhone: normalizePhone(dto.contactPhone) }
+            : {}),
+          ...(dto.country !== undefined
+            ? { country: dto.country?.trim() || 'CN' }
+            : {}),
+          ...(dto.province !== undefined
+            ? { province: dto.province.trim() }
+            : {}),
+          ...(dto.city !== undefined ? { city: dto.city.trim() } : {}),
+          ...(dto.district !== undefined
+            ? { district: dto.district.trim() }
+            : {}),
+          ...(dto.street !== undefined ? { street: dto.street.trim() } : {}),
+          ...(dto.building !== undefined
+            ? { building: dto.building?.trim() || null }
+            : {}),
+          ...(dto.isDefault !== undefined ? { isDefault: nextIsDefault } : {}),
+        },
+      });
+
+      if (nextIsDefault) {
+        await tx.guardianProfile.update({
+          where: { id: guardian.id },
+          data: { defaultServiceAddressId: updated.id },
+        });
+      } else if (current.isDefault) {
+        await tx.guardianProfile.update({
+          where: { id: guardian.id },
+          data: { defaultServiceAddressId: null },
+        });
+      }
+
+      return updated;
+    });
+
+    return this.mapAddressResponse(address);
+  }
+
   async updateSelfTeacherProfile(
     userId: string,
     dto: {
@@ -732,7 +1218,9 @@ export class AuthService {
           : {}),
         ...(dto.onboardingCompleted !== undefined
           ? {
-              onboardingCompletedAt: dto.onboardingCompleted ? new Date() : null,
+              onboardingCompletedAt: dto.onboardingCompleted
+                ? new Date()
+                : null,
             }
           : {}),
       },
@@ -791,7 +1279,9 @@ export class AuthService {
           : {}),
         ...(dto.onboardingCompleted !== undefined
           ? {
-              onboardingCompletedAt: dto.onboardingCompleted ? new Date() : null,
+              onboardingCompletedAt: dto.onboardingCompleted
+                ? new Date()
+                : null,
             }
           : {}),
       },
@@ -875,7 +1365,9 @@ export class AuthService {
             : {}),
           ...(dto.onboardingCompleted !== undefined
             ? {
-                onboardingCompletedAt: dto.onboardingCompleted ? new Date() : null,
+                onboardingCompletedAt: dto.onboardingCompleted
+                  ? new Date()
+                  : null,
               }
             : {}),
         },
@@ -981,7 +1473,9 @@ export class AuthService {
             data: {
               label: dto.defaultServiceAddress.label?.trim() || null,
               contactName: dto.defaultServiceAddress.contactName.trim(),
-              contactPhone: normalizePhone(dto.defaultServiceAddress.contactPhone),
+              contactPhone: normalizePhone(
+                dto.defaultServiceAddress.contactPhone,
+              ),
               country: dto.defaultServiceAddress.country?.trim() || 'CN',
               province: dto.defaultServiceAddress.province.trim(),
               city: dto.defaultServiceAddress.city.trim(),
@@ -998,7 +1492,9 @@ export class AuthService {
               userId,
               label: dto.defaultServiceAddress.label?.trim() || '上课地址',
               contactName: dto.defaultServiceAddress.contactName.trim(),
-              contactPhone: normalizePhone(dto.defaultServiceAddress.contactPhone),
+              contactPhone: normalizePhone(
+                dto.defaultServiceAddress.contactPhone,
+              ),
               country: dto.defaultServiceAddress.country?.trim() || 'CN',
               province: dto.defaultServiceAddress.province.trim(),
               city: dto.defaultServiceAddress.city.trim(),
@@ -1116,7 +1612,9 @@ export class AuthService {
             : {}),
           ...(dto.onboardingCompleted !== undefined
             ? {
-                onboardingCompletedAt: dto.onboardingCompleted ? new Date() : null,
+                onboardingCompletedAt: dto.onboardingCompleted
+                  ? new Date()
+                  : null,
               }
             : {}),
         },

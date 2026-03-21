@@ -64,6 +64,11 @@ export const TEST_SUPPORT_BOOKINGS = {
     id: 'qa_booking_confirmed',
     bookingNo: 'QATASK1CONF01',
   },
+  task2Occupied: {
+    key: 'task2_occupied',
+    id: 'qa_booking_task2_occupied',
+    bookingNo: 'QATASK2BOOK01',
+  },
 } as const;
 
 export const TEST_SUPPORT_SCENARIO_VARIANTS = {
@@ -78,5 +83,21 @@ export const TEST_SUPPORT_SCENARIO_VARIANTS = {
   task1Pending: {
     key: 'task1_pending',
     label: 'Task 1 老师工作台待处理列表',
+  },
+  task2Base: {
+    key: 'task2_base',
+    label: 'Task 2 老师排班与可售时段',
+  },
+  task3BookingCreated: {
+    key: 'task3_booking_created',
+    label: 'Task 3 家长发起预约申请',
+  },
+  task4Confirmed: {
+    key: 'task4_confirmed',
+    label: 'Task 4 接单支付与双端课表',
+  },
+  task5Reschedule: {
+    key: 'task5_reschedule',
+    label: 'Task 5 改约与取消',
   },
 } as const;

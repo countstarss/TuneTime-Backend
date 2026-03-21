@@ -8,7 +8,9 @@ import {
   GradeLevel,
   GuardianRelation,
   PaymentStatus,
+  PlatformRole,
   Prisma,
+  RescheduleRequestStatus,
   TeacherEmploymentType,
   TeacherVerificationStatus,
   Weekday,
@@ -64,7 +66,7 @@ export class TestSupportService {
   async getQaScenario(): Promise<QaScenarioResponseDto> {
     this.ensureEnabled();
     const bookings = await this.loadQaBookings();
-    const scenario = this.detectScenarioVariant(bookings);
+    const scenario = await this.detectScenarioVariant(bookings);
 
     return {
       enabled: true,
@@ -122,7 +124,7 @@ export class TestSupportService {
     const paymentStatus =
       dto.outcome === 'success' ? PaymentStatus.PAID : PaymentStatus.FAILED;
 
-    await this.bookingsService.updatePayment(booking.id, {
+    await this.bookingsService.updatePayment(undefined, booking.id, {
       paymentStatus,
     });
 
@@ -190,8 +192,39 @@ export class TestSupportService {
     );
   }
 
-  private detectScenarioVariant(bookings: QaScenarioBooking[]) {
+  private async detectScenarioVariant(bookings: QaScenarioBooking[]) {
     const bookingKeys = bookings.map((item) => item.key);
+
+    const pendingRescheduleCount = await this.prisma.rescheduleRequest.count({
+      where: {
+        bookingId: {
+          in: Object.values(TEST_SUPPORT_BOOKINGS).map((item) => item.id),
+        },
+        status: RescheduleRequestStatus.PENDING,
+      },
+    });
+
+    if (pendingRescheduleCount > 0) {
+      return TEST_SUPPORT_SCENARIO_VARIANTS.task5Reschedule;
+    }
+
+    if (
+      bookingKeys.includes(TEST_SUPPORT_BOOKINGS.pendingPayment.key) &&
+      bookingKeys.includes(TEST_SUPPORT_BOOKINGS.confirmed.key)
+    ) {
+      return TEST_SUPPORT_SCENARIO_VARIANTS.task4Confirmed;
+    }
+
+    if (bookingKeys.includes(TEST_SUPPORT_BOOKINGS.task2Occupied.key)) {
+      return TEST_SUPPORT_SCENARIO_VARIANTS.task2Base;
+    }
+
+    if (
+      bookingKeys.includes(TEST_SUPPORT_BOOKINGS.pendingAcceptance.key) &&
+      !bookingKeys.includes(TEST_SUPPORT_BOOKINGS.confirmed.key)
+    ) {
+      return TEST_SUPPORT_SCENARIO_VARIANTS.task3BookingCreated;
+    }
 
     if (
       bookingKeys.includes(TEST_SUPPORT_BOOKINGS.pendingAcceptance.key) ||
@@ -357,7 +390,16 @@ export class TestSupportService {
     ).map((item) => item.id);
 
     await this.prisma.$transaction(async (tx) => {
+      if (userIds.length > 0) {
+        await tx.bookingHold.deleteMany({
+          where: { createdByUserId: { in: userIds } },
+        });
+      }
+
       if (bookingIds.length > 0) {
+        await tx.rescheduleRequest.deleteMany({
+          where: { bookingId: { in: bookingIds } },
+        });
         await tx.walletTransaction.deleteMany({
           where: {
             OR: [
@@ -367,6 +409,9 @@ export class TestSupportService {
           },
         });
         await tx.paymentIntent.deleteMany({
+          where: { bookingId: { in: bookingIds } },
+        });
+        await tx.lesson.deleteMany({
           where: { bookingId: { in: bookingIds } },
         });
         await tx.booking.deleteMany({
@@ -485,7 +530,10 @@ export class TestSupportService {
       await this.createTeacherAccount(tx, passwordHash);
       await this.createMultiRoleAccount(tx, passwordHash);
 
-      if (variant !== TEST_SUPPORT_SCENARIO_VARIANTS.task1Empty.key) {
+      if (
+        variant !== TEST_SUPPORT_SCENARIO_VARIANTS.task1Empty.key &&
+        variant !== TEST_SUPPORT_SCENARIO_VARIANTS.task2Base.key
+      ) {
         await this.seedPendingPaymentBooking(tx, piano.id, {
           lessonStartAt,
           lessonEndAt,
@@ -495,6 +543,38 @@ export class TestSupportService {
 
       if (variant === TEST_SUPPORT_SCENARIO_VARIANTS.task1Pending.key) {
         await this.seedTeacherWorkbenchBookings(tx, piano.id, lessonStartAt);
+      }
+
+      if (variant === TEST_SUPPORT_SCENARIO_VARIANTS.task2Base.key) {
+        await this.seedTask2AvailabilityBooking(tx, piano.id);
+      }
+
+      if (variant === TEST_SUPPORT_SCENARIO_VARIANTS.task3BookingCreated.key) {
+        await this.seedTeacherWorkbenchBookings(tx, piano.id, lessonStartAt);
+      }
+
+      if (variant === TEST_SUPPORT_SCENARIO_VARIANTS.task4Confirmed.key) {
+        await this.seedPendingPaymentBooking(tx, piano.id, {
+          lessonStartAt,
+          lessonEndAt,
+          now,
+        });
+        await this.seedTeacherWorkbenchBookings(tx, piano.id, lessonStartAt);
+      }
+
+      if (variant === TEST_SUPPORT_SCENARIO_VARIANTS.task5Reschedule.key) {
+        await this.seedTeacherWorkbenchBookings(tx, piano.id, lessonStartAt);
+        await tx.rescheduleRequest.create({
+          data: {
+            bookingId: TEST_SUPPORT_BOOKINGS.confirmed.id,
+            initiatorRole: PlatformRole.GUARDIAN,
+            initiatorUserId: TEST_SUPPORT_ACCOUNTS.guardian.userId,
+            proposedStartAt: new Date('2026-03-29T10:00:00.000Z'),
+            proposedEndAt: new Date('2026-03-29T11:00:00.000Z'),
+            reason: 'Task 5 固定改约样例',
+            status: RescheduleRequestStatus.PENDING,
+          },
+        });
       }
     });
   }
@@ -611,6 +691,41 @@ export class TestSupportService {
         paymentDueAt: null,
         planSummary: 'Task 1 已确认样例',
         notes: '用于验证老师工作台已确认分组。',
+      },
+    });
+  }
+
+  private async seedTask2AvailabilityBooking(tx: TxClient, subjectId: string) {
+    const startAt = new Date('2026-03-25T20:00:00.000Z');
+    const endAt = new Date('2026-03-25T21:00:00.000Z');
+
+    await tx.booking.create({
+      data: {
+        id: TEST_SUPPORT_BOOKINGS.task2Occupied.id,
+        bookingNo: TEST_SUPPORT_BOOKINGS.task2Occupied.bookingNo,
+        teacherProfileId: TEST_SUPPORT_ACCOUNTS.teacher.teacherProfileId,
+        studentProfileId: TEST_SUPPORT_ACCOUNTS.guardian.studentProfileId,
+        guardianProfileId: TEST_SUPPORT_ACCOUNTS.guardian.guardianProfileId,
+        subjectId,
+        serviceAddressId: TEST_SUPPORT_ACCOUNTS.guardian.addressId,
+        startAt,
+        endAt,
+        timezone: 'Asia/Shanghai',
+        status: BookingStatus.CONFIRMED,
+        teacherAcceptedAt: new Date('2026-03-22T08:00:00.000Z'),
+        guardianConfirmedAt: new Date('2026-03-22T09:00:00.000Z'),
+        isTrial: false,
+        hourlyRate: 200,
+        durationMinutes: 60,
+        subtotalAmount: 200,
+        discountAmount: 0,
+        platformFeeAmount: 0,
+        travelFeeAmount: 0,
+        totalAmount: 200,
+        paymentStatus: PaymentStatus.PAID,
+        paymentDueAt: null,
+        planSummary: 'Task 2 已占用样例课次',
+        notes: '用于验证周三 20:00 时段不会再次展示。',
       },
     });
   }

@@ -18,6 +18,8 @@ type TeacherWorkbenchBookingRow = {
   bookingNo: string;
   status: BookingStatus;
   paymentStatus: PaymentStatus;
+  cancellationReason: string | null;
+  statusRemark: string | null;
   startAt: Date;
   endAt: Date;
   timezone: string;
@@ -71,6 +73,8 @@ export class TeacherWorkbenchService {
       bookingNo: true,
       status: true,
       paymentStatus: true,
+      cancellationReason: true,
+      statusRemark: true,
       startAt: true,
       endAt: true,
       timezone: true,
@@ -148,6 +152,7 @@ export class TeacherWorkbenchService {
       serviceAddressLabel: booking.serviceAddress.label,
       isTrial: booking.isTrial,
       notes: booking.notes,
+      statusRemark: booking.statusRemark,
       planSummary: booking.planSummary,
       student: {
         id: booking.studentProfile.id,
@@ -176,6 +181,7 @@ export class TeacherWorkbenchService {
       totalAmount: this.toNumber(booking.totalAmount),
       contactName: booking.serviceAddress.contactName,
       contactPhone: booking.serviceAddress.contactPhone,
+      cancellationReason: booking.cancellationReason,
     };
   }
 

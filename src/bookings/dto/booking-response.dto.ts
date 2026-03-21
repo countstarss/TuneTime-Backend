@@ -134,6 +134,62 @@ export class BookingAddressSummaryDto {
   building!: string | null;
 }
 
+export class BookingRescheduleRequestDto {
+  @ApiProperty({ description: '改约请求 ID。', example: 'reschedule_001' })
+  id!: string;
+
+  @ApiProperty({ description: '发起角色。', example: 'GUARDIAN' })
+  initiatorRole!: string;
+
+  @ApiProperty({ description: '发起用户 ID。', example: 'user_001' })
+  initiatorUserId!: string;
+
+  @ApiProperty({
+    description: '建议的新开始时间。',
+    example: '2026-03-28T10:00:00.000Z',
+  })
+  proposedStartAt!: Date;
+
+  @ApiProperty({
+    description: '建议的新结束时间。',
+    example: '2026-03-28T11:00:00.000Z',
+  })
+  proposedEndAt!: Date;
+
+  @ApiProperty({
+    description: '改约原因。',
+    example: '老师临时冲突，希望顺延到周六上午。',
+    nullable: true,
+    required: false,
+  })
+  reason!: string | null;
+
+  @ApiProperty({ description: '改约状态。', example: 'PENDING' })
+  status!: string;
+
+  @ApiProperty({
+    description: '响应时间。',
+    example: '2026-03-27T09:00:00.000Z',
+    nullable: true,
+    required: false,
+  })
+  respondedAt!: Date | null;
+
+  @ApiProperty({
+    description: '响应人用户 ID。',
+    example: 'user_002',
+    nullable: true,
+    required: false,
+  })
+  respondedByUserId!: string | null;
+
+  @ApiProperty({
+    description: '创建时间。',
+    example: '2026-03-27T08:00:00.000Z',
+  })
+  createdAt!: Date;
+}
+
 export class BookingResponseDto {
   @ApiProperty({ description: '预约 ID。', example: 'cmc123booking001' })
   id!: string;
@@ -178,6 +234,14 @@ export class BookingResponseDto {
 
   @ApiProperty({ description: '预约状态。', example: 'PENDING_ACCEPTANCE' })
   status!: string;
+
+  @ApiProperty({
+    description: '状态备注/拒单原因/取消说明。',
+    example: '老师周五晚临时无法上门。',
+    nullable: true,
+    required: false,
+  })
+  statusRemark!: string | null;
 
   @ApiProperty({
     description: '取消原因。',
@@ -287,6 +351,13 @@ export class BookingResponseDto {
 
   @ApiProperty({ description: '地址摘要。', type: BookingAddressSummaryDto })
   serviceAddress!: BookingAddressSummaryDto;
+
+  @ApiProperty({
+    description: '改约请求列表。',
+    type: BookingRescheduleRequestDto,
+    isArray: true,
+  })
+  rescheduleRequests!: BookingRescheduleRequestDto[];
 
   @ApiProperty({
     description: '创建时间。',

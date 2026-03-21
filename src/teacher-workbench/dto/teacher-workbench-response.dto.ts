@@ -96,6 +96,14 @@ export class TeacherWorkbenchBookingListItemDto {
   notes!: string | null;
 
   @ApiProperty({
+    description: '状态备注/拒单原因/取消说明。',
+    example: '老师临时有事，需要改约。',
+    nullable: true,
+    required: false,
+  })
+  statusRemark!: string | null;
+
+  @ApiProperty({
     description: '课前计划摘要。',
     example: '试听课先做基础评估。',
     nullable: true,
@@ -151,6 +159,14 @@ export class TeacherWorkbenchBookingDetailDto extends TeacherWorkbenchBookingLis
 
   @ApiProperty({ description: '联系人手机号。', example: '13800138000' })
   contactPhone!: string;
+
+  @ApiProperty({
+    description: '取消原因。',
+    example: 'TEACHER_REQUEST',
+    nullable: true,
+    required: false,
+  })
+  cancellationReason!: string | null;
 }
 
 export class TeacherWorkbenchPendingSummaryDto {

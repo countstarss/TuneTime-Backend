@@ -6,6 +6,7 @@ import {
   IsOptional,
   IsString,
   Length,
+  MaxLength,
 } from 'class-validator';
 
 export class CancelBookingDto {
@@ -33,4 +34,13 @@ export class CancelBookingDto {
   @IsOptional()
   @IsDateString()
   cancelledAt?: string;
+
+  @ApiPropertyOptional({
+    description: '取消说明。',
+    example: '老师家中临时有事，需要取消本次课程。',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  remark?: string;
 }

@@ -56,6 +56,37 @@ export type AuthOnboardingState = {
   };
 };
 
+export type AuthTeacherProfileSnapshot = {
+  displayName: string | null;
+  bio: string | null;
+  employmentType: string | null;
+  baseHourlyRate: number | null;
+  serviceRadiusKm: number | null;
+  acceptTrial: boolean | null;
+  maxTravelMinutes: number | null;
+  timezone: string | null;
+  agreementAcceptedAt: Date | null;
+  agreementVersion: string | null;
+};
+
+export type AuthGuardianProfileSnapshot = {
+  displayName: string | null;
+  phone: string | null;
+  emergencyContactName: string | null;
+  emergencyContactPhone: string | null;
+  defaultServiceAddressId: string | null;
+};
+
+export type AuthStudentProfileSnapshot = {
+  displayName: string | null;
+  gradeLevel: string | null;
+  dateOfBirth: Date | null;
+  schoolName: string | null;
+  learningGoals: string | null;
+  specialNeeds: string | null;
+  timezone: string | null;
+};
+
 export type AuthUserProfile = {
   id: string;
   name: string | null;
@@ -72,6 +103,9 @@ export type AuthUserProfile = {
   loginMethods: LoginMethod[];
   profileIds: AuthProfileIds;
   onboardingState: AuthOnboardingState;
+  teacherProfile: AuthTeacherProfileSnapshot | null;
+  guardianProfile: AuthGuardianProfileSnapshot | null;
+  studentProfile: AuthStudentProfileSnapshot | null;
 };
 
 export type AuthResponse = {

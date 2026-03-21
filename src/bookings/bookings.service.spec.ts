@@ -3,7 +3,9 @@ import {
   BookingCancellationReason,
   BookingStatus,
   PaymentStatus,
+  PlatformRole,
   TeacherVerificationStatus,
+  UserStatus,
 } from '@prisma/client';
 import { createKnownRequestError } from '../test-utils/prisma-test.utils';
 import { BookingsService } from './bookings.service';
@@ -75,6 +77,7 @@ describe('BookingsService', () => {
       code: 'PIANO',
       name: '钢琴',
     },
+    rescheduleRequests: [],
     serviceAddress: {
       id: 'addr_1',
       userId: 'user_guardian_1',
@@ -128,12 +131,35 @@ describe('BookingsService', () => {
     $transaction: jest.fn(),
   };
 
+  const teacherAvailabilityService = {
+    hasSellableWindow: jest.fn(),
+  };
+
+  const teacherUser = {
+    userId: 'user_teacher_1',
+    activeRole: PlatformRole.TEACHER,
+    roles: [PlatformRole.TEACHER],
+    status: UserStatus.ACTIVE,
+    tokenPayload: {},
+  };
+
+  const guardianUser = {
+    userId: 'user_guardian_1',
+    activeRole: PlatformRole.GUARDIAN,
+    roles: [PlatformRole.GUARDIAN],
+    status: UserStatus.ACTIVE,
+    tokenPayload: {},
+  };
+
   let service: BookingsService;
 
   beforeEach(() => {
     jest.clearAllMocks();
     prisma.$queryRawUnsafe.mockResolvedValue([]);
-    service = new BookingsService(prisma as never);
+    service = new BookingsService(
+      prisma as never,
+      teacherAvailabilityService as never,
+    );
   });
 
   it('should create booking and calculate pricing from trial rate', async () => {
@@ -266,7 +292,7 @@ describe('BookingsService', () => {
       teacherAcceptedAt: new Date('2026-03-18T09:00:00.000Z'),
     });
 
-    const result = await service.accept('booking_1', {
+    const result = await service.accept(teacherUser, 'booking_1', {
       acceptedAt: '2026-03-18T09:00:00.000Z',
       planSummary: '首节课先做基础评估',
     });
@@ -282,7 +308,16 @@ describe('BookingsService', () => {
       paymentStatus: PaymentStatus.PAID,
     });
 
-    const result = await service.updatePayment('booking_1', {
+    prisma.$transaction.mockImplementation(async (callback: any) =>
+      callback({
+        booking: prisma.booking,
+        lesson: {
+          upsert: jest.fn().mockResolvedValue(undefined),
+        },
+      }),
+    );
+
+    const result = await service.updatePayment(guardianUser, 'booking_1', {
       paymentStatus: PaymentStatus.PAID,
     });
 
@@ -301,14 +336,34 @@ describe('BookingsService', () => {
       cancelledAt: new Date('2026-03-18T10:30:00.000Z'),
     });
 
-    const result = await service.cancel('booking_1', {
-      cancellationReason: BookingCancellationReason.STUDENT_REQUEST,
-      cancelledByUserId: 'user_guardian_1',
-      cancelledAt: '2026-03-18T10:30:00.000Z',
-    });
+    const result = await service.cancel(
+      'booking_1',
+      {
+        cancellationReason: BookingCancellationReason.STUDENT_REQUEST,
+        cancelledByUserId: 'user_guardian_1',
+        cancelledAt: '2026-03-18T10:30:00.000Z',
+      },
+      guardianUser,
+    );
 
     expect(result.status).toBe(BookingStatus.CANCELLED);
     expect(result.cancelledByUserId).toBe('user_guardian_1');
+  });
+
+  it('should reject reschedule requests in the past', async () => {
+    prisma.booking.findUnique.mockResolvedValue({
+      ...bookingEntity,
+      status: BookingStatus.CONFIRMED,
+      rescheduleRequests: [],
+    });
+
+    await expect(
+      service.createRescheduleRequest(guardianUser, 'booking_1', {
+        proposedStartAt: '2020-03-18T10:30:00.000Z',
+        proposedEndAt: '2020-03-18T11:30:00.000Z',
+        reason: '时间冲突',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('should reject deleting booking when constrained by foreign keys', async () => {

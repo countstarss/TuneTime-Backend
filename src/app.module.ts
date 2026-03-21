@@ -14,6 +14,8 @@ import { SubjectsModule } from './subjects/subjects.module';
 import { CrmModule } from './crm/crm.module';
 import { TestSupportModule } from './test-support/test-support.module';
 import { TeacherWorkbenchModule } from './teacher-workbench/teacher-workbench.module';
+import { TeacherAvailabilityModule } from './teacher-availability/teacher-availability.module';
+import { CalendarModule } from './calendar/calendar.module';
 
 @Module({
   imports: [
@@ -30,6 +32,8 @@ import { TeacherWorkbenchModule } from './teacher-workbench/teacher-workbench.mo
     CrmModule,
     TestSupportModule,
     TeacherWorkbenchModule,
+    TeacherAvailabilityModule,
+    CalendarModule,
   ],
   controllers: [AppController],
   providers: [AppService],
