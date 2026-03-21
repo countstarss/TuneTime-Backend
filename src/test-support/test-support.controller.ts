@@ -2,6 +2,7 @@ import { Body, Controller, Get, Post } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   MockPaymentRequestDto,
+  ResetQaScenarioRequestDto,
   QaScenarioResetResponseDto,
   QaScenarioResponseDto,
 } from './dto/test-support.dto';
@@ -20,10 +21,12 @@ export class TestSupportController {
   }
 
   @Post('qa-scenario/reset')
-  @ApiOperation({ summary: '重置 Task 0 QA 场景到固定初始状态' })
+  @ApiOperation({ summary: '重置固定 QA 场景到指定初始状态' })
   @ApiOkResponse({ type: QaScenarioResetResponseDto })
-  resetQaScenario(): Promise<QaScenarioResetResponseDto> {
-    return this.testSupportService.resetQaScenario();
+  resetQaScenario(
+    @Body() dto: ResetQaScenarioRequestDto,
+  ): Promise<QaScenarioResetResponseDto> {
+    return this.testSupportService.resetQaScenario(dto);
   }
 
   @Post('qa-scenario/mock-payment')

@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { PaymentStatus, PlatformRole } from '@prisma/client';
-import { IsIn, IsString } from 'class-validator';
+import { IsIn, IsOptional, IsString } from 'class-validator';
+import { TEST_SUPPORT_SCENARIO_VARIANTS } from '../test-support.constants';
 
 export class QaAccountDto {
   @ApiProperty()
@@ -81,6 +82,18 @@ export class QaScenarioResponseDto {
   @ApiProperty()
   enabled!: boolean;
 
+  @ApiProperty({
+    description: '当前固定测试场景。',
+    example: TEST_SUPPORT_SCENARIO_VARIANTS.task0.key,
+  })
+  scenarioVariant!: string;
+
+  @ApiProperty({
+    description: '当前固定测试场景说明。',
+    example: TEST_SUPPORT_SCENARIO_VARIANTS.task0.label,
+  })
+  scenarioLabel!: string;
+
   @ApiProperty({ type: QaAccountDto, isArray: true })
   accounts!: QaAccountDto[];
 
@@ -94,6 +107,18 @@ export class QaScenarioResponseDto {
 export class QaScenarioResetResponseDto extends QaScenarioResponseDto {
   @ApiProperty()
   resetAt!: string;
+}
+
+export class ResetQaScenarioRequestDto {
+  @ApiProperty({
+    description: '固定测试场景。',
+    enum: Object.values(TEST_SUPPORT_SCENARIO_VARIANTS).map((item) => item.key),
+    required: false,
+    example: TEST_SUPPORT_SCENARIO_VARIANTS.task1Pending.key,
+  })
+  @IsOptional()
+  @IsIn(Object.values(TEST_SUPPORT_SCENARIO_VARIANTS).map((item) => item.key))
+  variant?: string;
 }
 
 export class MockPaymentRequestDto {

@@ -60,6 +60,8 @@ describe('TestSupportService', () => {
     const result = await service.getQaScenario();
 
     expect(result.enabled).toBe(true);
+    expect(result.scenarioVariant).toBe('task0');
+    expect(result.scenarioLabel).toContain('Task 0');
     expect(result.accounts).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -122,7 +124,11 @@ describe('TestSupportService', () => {
 
   it('should block access when support is disabled', async () => {
     process.env.TEST_SUPPORT_ENABLED = 'false';
-    const disabledService = new TestSupportService(prisma, bookingsService, logStore);
+    const disabledService = new TestSupportService(
+      prisma,
+      bookingsService,
+      logStore,
+    );
 
     await expect(disabledService.getQaScenario()).rejects.toBeInstanceOf(
       ForbiddenException,

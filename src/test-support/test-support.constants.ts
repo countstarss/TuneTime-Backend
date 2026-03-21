@@ -54,4 +54,29 @@ export const TEST_SUPPORT_BOOKINGS = {
     id: 'qa_booking_pending_payment',
     bookingNo: 'QATASK0PAY01',
   },
+  pendingAcceptance: {
+    key: 'pending_acceptance',
+    id: 'qa_booking_pending_acceptance',
+    bookingNo: 'QATASK1WAIT01',
+  },
+  confirmed: {
+    key: 'confirmed',
+    id: 'qa_booking_confirmed',
+    bookingNo: 'QATASK1CONF01',
+  },
+} as const;
+
+export const TEST_SUPPORT_SCENARIO_VARIANTS = {
+  task0: {
+    key: 'task0',
+    label: 'Task 0 基础测试基座',
+  },
+  task1Empty: {
+    key: 'task1_empty',
+    label: 'Task 1 老师工作台空态',
+  },
+  task1Pending: {
+    key: 'task1_pending',
+    label: 'Task 1 老师工作台待处理列表',
+  },
 } as const;

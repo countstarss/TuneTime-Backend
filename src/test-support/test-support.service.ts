@@ -20,10 +20,12 @@ import {
   TEST_SUPPORT_ACCOUNTS,
   TEST_SUPPORT_BOOKINGS,
   TEST_SUPPORT_PASSWORD,
+  TEST_SUPPORT_SCENARIO_VARIANTS,
   TEST_SUPPORT_SUBJECT,
 } from './test-support.constants';
 import {
   MockPaymentRequestDto,
+  ResetQaScenarioRequestDto,
   QaScenarioResetResponseDto,
   QaScenarioResponseDto,
 } from './dto/test-support.dto';
@@ -43,6 +45,8 @@ type QaScenarioBooking = {
 };
 
 type TxClient = Prisma.TransactionClient;
+type QaScenarioVariant =
+  (typeof TEST_SUPPORT_SCENARIO_VARIANTS)[keyof typeof TEST_SUPPORT_SCENARIO_VARIANTS]['key'];
 
 @Injectable()
 export class TestSupportService {
@@ -59,25 +63,33 @@ export class TestSupportService {
 
   async getQaScenario(): Promise<QaScenarioResponseDto> {
     this.ensureEnabled();
+    const bookings = await this.loadQaBookings();
+    const scenario = this.detectScenarioVariant(bookings);
 
     return {
       enabled: true,
+      scenarioVariant: scenario.key,
+      scenarioLabel: scenario.label,
       accounts: this.buildQaAccounts(),
-      bookings: await this.loadQaBookings(),
+      bookings,
       events: await this.logStore.list(),
     };
   }
 
-  async resetQaScenario(): Promise<QaScenarioResetResponseDto> {
+  async resetQaScenario(
+    dto?: ResetQaScenarioRequestDto,
+  ): Promise<QaScenarioResetResponseDto> {
     this.ensureEnabled();
+    const variant = this.resolveScenarioVariant(dto?.variant);
 
     await this.logStore.clear();
     await this.deleteExistingQaData();
-    await this.seedQaData();
+    await this.seedQaData(variant);
     await this.logStore.append({
       type: 'QA_SCENARIO_RESET',
-      message: 'Task 0 QA 场景已重置到初始状态。',
+      message: `${this.describeScenario(variant)} 已重置到初始状态。`,
       payload: {
+        scenarioVariant: variant,
         bookingId: TEST_SUPPORT_BOOKINGS.pendingPayment.id,
       },
     });
@@ -157,6 +169,44 @@ export class TestSupportService {
     return values.filter((value): value is string => Boolean(value));
   }
 
+  private resolveScenarioVariant(value?: string): QaScenarioVariant {
+    const normalized = value?.trim().toLowerCase();
+    if (!normalized) {
+      return TEST_SUPPORT_SCENARIO_VARIANTS.task0.key;
+    }
+
+    const match = Object.values(TEST_SUPPORT_SCENARIO_VARIANTS).find(
+      (item) => item.key === normalized,
+    );
+    return (match?.key ??
+      TEST_SUPPORT_SCENARIO_VARIANTS.task0.key) as QaScenarioVariant;
+  }
+
+  private describeScenario(variant: QaScenarioVariant): string {
+    return (
+      Object.values(TEST_SUPPORT_SCENARIO_VARIANTS).find(
+        (item) => item.key === variant,
+      )?.label ?? TEST_SUPPORT_SCENARIO_VARIANTS.task0.label
+    );
+  }
+
+  private detectScenarioVariant(bookings: QaScenarioBooking[]) {
+    const bookingKeys = bookings.map((item) => item.key);
+
+    if (
+      bookingKeys.includes(TEST_SUPPORT_BOOKINGS.pendingAcceptance.key) ||
+      bookingKeys.includes(TEST_SUPPORT_BOOKINGS.confirmed.key)
+    ) {
+      return TEST_SUPPORT_SCENARIO_VARIANTS.task1Pending;
+    }
+
+    if (bookings.length === 0) {
+      return TEST_SUPPORT_SCENARIO_VARIANTS.task1Empty;
+    }
+
+    return TEST_SUPPORT_SCENARIO_VARIANTS.task0;
+  }
+
   private async loadQaBookings(): Promise<QaScenarioBooking[]> {
     const items = await this.prisma.booking.findMany({
       where: {
@@ -225,7 +275,9 @@ export class TestSupportService {
       ),
     );
     const knownAddressIds = this.compactStrings(
-      qaIdentifiers.map((item) => ('addressId' in item ? item.addressId : null)),
+      qaIdentifiers.map((item) =>
+        'addressId' in item ? item.addressId : null,
+      ),
     );
     const users = await this.prisma.user.findMany({
       where: {
@@ -265,24 +317,24 @@ export class TestSupportService {
       new Set([
         ...knownTeacherProfileIds,
         ...users
-            .map((item) => item.teacherProfile?.id)
-            .filter((item): item is string => !!item),
+          .map((item) => item.teacherProfile?.id)
+          .filter((item): item is string => !!item),
       ]),
     );
     const guardianProfileIds = Array.from(
       new Set([
         ...knownGuardianProfileIds,
         ...users
-            .map((item) => item.guardianProfile?.id)
-            .filter((item): item is string => !!item),
+          .map((item) => item.guardianProfile?.id)
+          .filter((item): item is string => !!item),
       ]),
     );
     const studentProfileIds = Array.from(
       new Set([
         ...knownStudentProfileIds,
         ...users
-            .map((item) => item.studentProfile?.id)
-            .filter((item): item is string => !!item),
+          .map((item) => item.studentProfile?.id)
+          .filter((item): item is string => !!item),
       ]),
     );
 
@@ -390,10 +442,7 @@ export class TestSupportService {
         });
         await tx.address.deleteMany({
           where: {
-            OR: [
-              { userId: { in: userIds } },
-              { id: { in: knownAddressIds } },
-            ],
+            OR: [{ userId: { in: userIds } }, { id: { in: knownAddressIds } }],
           },
         });
         await tx.wallet.deleteMany({
@@ -406,7 +455,7 @@ export class TestSupportService {
     });
   }
 
-  private async seedQaData() {
+  private async seedQaData(variant: QaScenarioVariant) {
     const piano = await this.prisma.subject.upsert({
       where: { code: TEST_SUPPORT_SUBJECT.code },
       create: {
@@ -436,35 +485,133 @@ export class TestSupportService {
       await this.createTeacherAccount(tx, passwordHash);
       await this.createMultiRoleAccount(tx, passwordHash);
 
-      await tx.booking.create({
-        data: {
-          id: TEST_SUPPORT_BOOKINGS.pendingPayment.id,
-          bookingNo: TEST_SUPPORT_BOOKINGS.pendingPayment.bookingNo,
-          teacherProfileId: TEST_SUPPORT_ACCOUNTS.teacher.teacherProfileId,
-          studentProfileId: TEST_SUPPORT_ACCOUNTS.guardian.studentProfileId,
-          guardianProfileId: TEST_SUPPORT_ACCOUNTS.guardian.guardianProfileId,
-          subjectId: piano.id,
-          serviceAddressId: TEST_SUPPORT_ACCOUNTS.guardian.addressId,
-          startAt: lessonStartAt,
-          endAt: lessonEndAt,
-          timezone: 'Asia/Shanghai',
-          status: BookingStatus.PENDING_PAYMENT,
-          teacherAcceptedAt: now,
-          guardianConfirmedAt: now,
-          isTrial: true,
-          hourlyRate: 200,
-          durationMinutes: 60,
-          subtotalAmount: 200,
-          discountAmount: 0,
-          platformFeeAmount: 0,
-          travelFeeAmount: 0,
-          totalAmount: 200,
-          paymentStatus: PaymentStatus.UNPAID,
-          paymentDueAt: new Date(lessonStartAt.getTime() - 2 * 60 * 60 * 1000),
-          planSummary: 'Task 0 模拟支付测试单',
-          notes: '用于验证开发态模拟支付与事件日志。',
-        },
-      });
+      if (variant !== TEST_SUPPORT_SCENARIO_VARIANTS.task1Empty.key) {
+        await this.seedPendingPaymentBooking(tx, piano.id, {
+          lessonStartAt,
+          lessonEndAt,
+          now,
+        });
+      }
+
+      if (variant === TEST_SUPPORT_SCENARIO_VARIANTS.task1Pending.key) {
+        await this.seedTeacherWorkbenchBookings(tx, piano.id, lessonStartAt);
+      }
+    });
+  }
+
+  private async seedPendingPaymentBooking(
+    tx: TxClient,
+    subjectId: string,
+    params: {
+      lessonStartAt: Date;
+      lessonEndAt: Date;
+      now: Date;
+    },
+  ) {
+    await tx.booking.create({
+      data: {
+        id: TEST_SUPPORT_BOOKINGS.pendingPayment.id,
+        bookingNo: TEST_SUPPORT_BOOKINGS.pendingPayment.bookingNo,
+        teacherProfileId: TEST_SUPPORT_ACCOUNTS.teacher.teacherProfileId,
+        studentProfileId: TEST_SUPPORT_ACCOUNTS.guardian.studentProfileId,
+        guardianProfileId: TEST_SUPPORT_ACCOUNTS.guardian.guardianProfileId,
+        subjectId,
+        serviceAddressId: TEST_SUPPORT_ACCOUNTS.guardian.addressId,
+        startAt: params.lessonStartAt,
+        endAt: params.lessonEndAt,
+        timezone: 'Asia/Shanghai',
+        status: BookingStatus.PENDING_PAYMENT,
+        teacherAcceptedAt: params.now,
+        guardianConfirmedAt: params.now,
+        isTrial: true,
+        hourlyRate: 200,
+        durationMinutes: 60,
+        subtotalAmount: 200,
+        discountAmount: 0,
+        platformFeeAmount: 0,
+        travelFeeAmount: 0,
+        totalAmount: 200,
+        paymentStatus: PaymentStatus.UNPAID,
+        paymentDueAt: new Date(
+          params.lessonStartAt.getTime() - 2 * 60 * 60 * 1000,
+        ),
+        planSummary: 'Task 0 模拟支付测试单',
+        notes: '用于验证开发态模拟支付与事件日志。',
+      },
+    });
+  }
+
+  private async seedTeacherWorkbenchBookings(
+    tx: TxClient,
+    subjectId: string,
+    baseStartAt: Date,
+  ) {
+    const startPendingAcceptance = new Date(baseStartAt);
+    startPendingAcceptance.setDate(startPendingAcceptance.getDate() + 1);
+    const endPendingAcceptance = new Date(startPendingAcceptance);
+    endPendingAcceptance.setHours(endPendingAcceptance.getHours() + 1);
+
+    const startConfirmed = new Date(baseStartAt);
+    startConfirmed.setDate(startConfirmed.getDate() + 2);
+    const endConfirmed = new Date(startConfirmed);
+    endConfirmed.setHours(endConfirmed.getHours() + 1);
+
+    await tx.booking.create({
+      data: {
+        id: TEST_SUPPORT_BOOKINGS.pendingAcceptance.id,
+        bookingNo: TEST_SUPPORT_BOOKINGS.pendingAcceptance.bookingNo,
+        teacherProfileId: TEST_SUPPORT_ACCOUNTS.teacher.teacherProfileId,
+        studentProfileId: TEST_SUPPORT_ACCOUNTS.guardian.studentProfileId,
+        guardianProfileId: TEST_SUPPORT_ACCOUNTS.guardian.guardianProfileId,
+        subjectId,
+        serviceAddressId: TEST_SUPPORT_ACCOUNTS.guardian.addressId,
+        startAt: startPendingAcceptance,
+        endAt: endPendingAcceptance,
+        timezone: 'Asia/Shanghai',
+        status: BookingStatus.PENDING_ACCEPTANCE,
+        isTrial: false,
+        hourlyRate: 220,
+        durationMinutes: 60,
+        subtotalAmount: 220,
+        discountAmount: 0,
+        platformFeeAmount: 0,
+        travelFeeAmount: 0,
+        totalAmount: 220,
+        paymentStatus: PaymentStatus.UNPAID,
+        paymentDueAt: null,
+        planSummary: 'Task 1 待接单样例',
+        notes: '用于验证老师工作台待接单分组。',
+      },
+    });
+
+    await tx.booking.create({
+      data: {
+        id: TEST_SUPPORT_BOOKINGS.confirmed.id,
+        bookingNo: TEST_SUPPORT_BOOKINGS.confirmed.bookingNo,
+        teacherProfileId: TEST_SUPPORT_ACCOUNTS.teacher.teacherProfileId,
+        studentProfileId: TEST_SUPPORT_ACCOUNTS.guardian.studentProfileId,
+        guardianProfileId: TEST_SUPPORT_ACCOUNTS.guardian.guardianProfileId,
+        subjectId,
+        serviceAddressId: TEST_SUPPORT_ACCOUNTS.guardian.addressId,
+        startAt: startConfirmed,
+        endAt: endConfirmed,
+        timezone: 'Asia/Shanghai',
+        status: BookingStatus.CONFIRMED,
+        teacherAcceptedAt: new Date(),
+        guardianConfirmedAt: new Date(),
+        isTrial: false,
+        hourlyRate: 220,
+        durationMinutes: 60,
+        subtotalAmount: 220,
+        discountAmount: 0,
+        platformFeeAmount: 0,
+        travelFeeAmount: 0,
+        totalAmount: 220,
+        paymentStatus: PaymentStatus.PAID,
+        paymentDueAt: null,
+        planSummary: 'Task 1 已确认样例',
+        notes: '用于验证老师工作台已确认分组。',
+      },
     });
   }
 
@@ -635,10 +782,7 @@ export class TestSupportService {
     });
   }
 
-  private async createMultiRoleAccount(
-    tx: TxClient,
-    passwordHash: string,
-  ) {
+  private async createMultiRoleAccount(tx: TxClient, passwordHash: string) {
     const account = TEST_SUPPORT_ACCOUNTS.multiRole;
     const subject = await tx.subject.findUniqueOrThrow({
       where: { code: TEST_SUPPORT_SUBJECT.code },

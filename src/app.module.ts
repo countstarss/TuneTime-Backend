@@ -13,6 +13,7 @@ import { TeachersModule } from './teachers/teachers.module';
 import { SubjectsModule } from './subjects/subjects.module';
 import { CrmModule } from './crm/crm.module';
 import { TestSupportModule } from './test-support/test-support.module';
+import { TeacherWorkbenchModule } from './teacher-workbench/teacher-workbench.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { TestSupportModule } from './test-support/test-support.module';
     TeachersModule,
     CrmModule,
     TestSupportModule,
+    TeacherWorkbenchModule,
   ],
   controllers: [AppController],
   providers: [AppService],
