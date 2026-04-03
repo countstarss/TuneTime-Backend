@@ -141,8 +141,14 @@ export function resolvePreferredRole(
   return roles[0] ?? null;
 }
 
-export function assertWechatConfigured() {
+export function assertWechatAppConfigured() {
   if (!process.env.WECHAT_APP_APP_ID || !process.env.WECHAT_APP_SECRET) {
     throw new UnauthorizedException('WeChat App login is not configured');
+  }
+}
+
+export function assertWechatMiniappConfigured() {
+  if (!process.env.WECHAT_MINIAPP_APP_ID || !process.env.WECHAT_MINIAPP_SECRET) {
+    throw new UnauthorizedException('WeChat Mini Program login is not configured');
   }
 }

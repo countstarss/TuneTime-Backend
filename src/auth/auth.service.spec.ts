@@ -54,6 +54,7 @@ describe('AuthService', () => {
 
   const wechatAuthService = {
     loginWithAppCode: jest.fn(),
+    loginWithMiniappCode: jest.fn(),
   };
 
   const profileBootstrapService = {
@@ -228,6 +229,49 @@ describe('AuthService', () => {
     );
     expect(result.user.activeRole).toBe(PlatformRole.STUDENT);
     expect(result.accessToken).toBe('test-token');
+  });
+
+  it('should delegate miniapp login and issue auth response', async () => {
+    wechatAuthService.loginWithMiniappCode.mockResolvedValue({
+      userId: 'user_1',
+      activeRole: PlatformRole.GUARDIAN,
+    });
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user_1',
+      name: '微信用户',
+      email: null,
+      phone: null,
+      phoneVerifiedAt: null,
+      image: null,
+      status: UserStatus.ACTIVE,
+      passwordCredential: null,
+      accounts: [{ provider: 'WECHAT_MINIAPP' }],
+      teacherProfile: null,
+      guardianProfile: {
+        id: 'guardian_1',
+        displayName: '微信用户',
+        phone: null,
+        emergencyContactName: null,
+        emergencyContactPhone: null,
+        defaultServiceAddressId: null,
+        onboardingCompletedAt: null,
+        students: [],
+      },
+      studentProfile: null,
+      roles: [{ role: PlatformRole.GUARDIAN, isPrimary: true }],
+    });
+
+    const result = await service.loginWithWechatMiniapp({
+      code: 'miniapp-code',
+      requestedRole: PlatformRole.GUARDIAN,
+    });
+
+    expect(wechatAuthService.loginWithMiniappCode).toHaveBeenCalledWith({
+      code: 'miniapp-code',
+      requestedRole: PlatformRole.GUARDIAN,
+    });
+    expect(result.accessToken).toBe('test-token');
+    expect(result.user.loginMethods).toContain('WECHAT_MINIAPP');
   });
 
   it('should reject switching to a missing role', async () => {

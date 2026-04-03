@@ -130,6 +130,21 @@ export class WechatAppLoginDto {
   requestedRole?: PlatformRole;
 }
 
+export class WechatMiniappLoginDto {
+  @ApiProperty({ description: '微信小程序登录 code。' })
+  @IsString()
+  code!: string;
+
+  @ApiPropertyOptional({
+    description: '首次登录时希望进入的身份。',
+    enum: [PlatformRole.TEACHER, PlatformRole.GUARDIAN, PlatformRole.STUDENT],
+    example: PlatformRole.GUARDIAN,
+  })
+  @IsOptional()
+  @IsEnum(PlatformRole)
+  requestedRole?: PlatformRole;
+}
+
 export class RoleSwitchDto {
   @ApiProperty({ description: '切换到的身份。', enum: PlatformRole })
   @IsEnum(PlatformRole)
@@ -370,7 +385,7 @@ export class AuthUserDto {
 
   @ApiProperty({
     isArray: true,
-    enum: ['EMAIL_PASSWORD', 'SMS', 'WECHAT_APP'],
+    enum: ['EMAIL_PASSWORD', 'SMS', 'WECHAT_APP', 'WECHAT_MINIAPP'],
   })
   loginMethods!: string[];
 

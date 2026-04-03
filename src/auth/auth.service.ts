@@ -211,6 +211,9 @@ export class AuthService {
     if (user.accounts.some((item) => item.provider === 'WECHAT_APP')) {
       loginMethods.add('WECHAT_APP');
     }
+    if (user.accounts.some((item) => item.provider === 'WECHAT_MINIAPP')) {
+      loginMethods.add('WECHAT_MINIAPP');
+    }
 
     const realNameVerified = !!user.realNameVerifiedAt;
     const teacherRequiredItems = [
@@ -513,6 +516,14 @@ export class AuthService {
     requestedRole?: PlatformRole;
   }): Promise<AuthResponse> {
     const result = await this.wechatAuthService.loginWithAppCode(input);
+    return this.issueAuthResponse(result.userId, result.activeRole);
+  }
+
+  async loginWithWechatMiniapp(input: {
+    code: string;
+    requestedRole?: PlatformRole;
+  }): Promise<AuthResponse> {
+    const result = await this.wechatAuthService.loginWithMiniappCode(input);
     return this.issueAuthResponse(result.userId, result.activeRole);
   }
 

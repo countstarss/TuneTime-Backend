@@ -5,9 +5,9 @@ import {
 } from '@nestjs/common';
 import { Prisma, UserStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { WECHAT_APP_PROVIDER } from './auth.constants';
 
 type WechatIdentity = {
+  provider: string;
   providerAppId: string;
   providerAccountId: string;
   unionId: string | null;
@@ -68,6 +68,7 @@ export class IdentityLinkingService {
   }
 
   async findUserByWechatIdentity(identity: {
+    provider: string;
     providerAccountId: string;
     unionId: string | null;
     openId: string;
@@ -75,7 +76,7 @@ export class IdentityLinkingService {
     if (identity.unionId) {
       const byUnion = await this.prisma.account.findFirst({
         where: {
-          provider: WECHAT_APP_PROVIDER,
+          provider: identity.provider,
           unionId: identity.unionId,
         },
         select: {
@@ -95,7 +96,7 @@ export class IdentityLinkingService {
 
     const byOpenId = await this.prisma.account.findFirst({
       where: {
-        provider: WECHAT_APP_PROVIDER,
+        provider: identity.provider,
         openId: identity.openId,
       },
       select: {
@@ -136,7 +137,7 @@ export class IdentityLinkingService {
   async upsertWechatAccount(userId: string, identity: WechatIdentity) {
     const existing = await this.prisma.account.findFirst({
       where: {
-        provider: WECHAT_APP_PROVIDER,
+        provider: identity.provider,
         OR: [
           ...(identity.unionId ? [{ unionId: identity.unionId }] : []),
           { openId: identity.openId },
@@ -179,7 +180,7 @@ export class IdentityLinkingService {
       data: {
         userId,
         type: 'oauth',
-        provider: WECHAT_APP_PROVIDER,
+        provider: identity.provider,
         providerAccountId: identity.providerAccountId,
         providerAppId: identity.providerAppId,
         unionId: identity.unionId,

@@ -5,7 +5,11 @@ import {
 } from '@prisma/client';
 import type { JWTPayload } from 'jose';
 
-export type LoginMethod = 'EMAIL_PASSWORD' | 'SMS' | 'WECHAT_APP';
+export type LoginMethod =
+  | 'EMAIL_PASSWORD'
+  | 'SMS'
+  | 'WECHAT_APP'
+  | 'WECHAT_MINIAPP';
 
 export type AuthenticatedUserContext = {
   userId: string;

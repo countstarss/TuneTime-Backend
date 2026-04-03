@@ -12,6 +12,7 @@ export const ADMIN_AUTH_ROLES = [
 ] as const;
 
 export const WECHAT_APP_PROVIDER = 'WECHAT_APP';
+export const WECHAT_MINIAPP_PROVIDER = 'WECHAT_MINIAPP';
 
 export const AUTH_CODE_LENGTH = 6;
 export const DEFAULT_AUTH_CODE_TTL_SECONDS = 600;

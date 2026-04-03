@@ -1,0 +1,1089 @@
+# TuneTime Backend 项目总览
+
+这份文档面向后续接手仓库的 agent / 开发者，目标是让阅读者在尽量少翻代码的情况下，快速理解：
+
+- 这个项目是做什么的
+- 服务是怎么启动的
+- 权限、角色、onboarding、实名、预约这些主链路是怎么工作的
+- 每个模块各自负责什么
+- 改需求时应该先看哪些文件
+- 当前代码里哪些是开发态能力，哪些还没有真正落地成生产闭环
+
+如果你只想快速进入代码，建议先看本文的“推荐阅读顺序”和“模块地图”两节。
+
+## 1. 项目定位
+
+TuneTime 是一个“上门音乐私教撮合平台”的后端。
+
+从代码和 schema 看，系统主要服务三类前台角色与一类后台角色：
+
+- 家长 / 监护人 `GUARDIAN`
+- 学生 `STUDENT`
+- 老师 `TEACHER`
+- 运营/管理员 `ADMIN`、`SUPER_ADMIN`
+
+当前仓库已经覆盖的业务主线：
+
+- 账号注册、登录、绑定、角色切换
+- 老师 / 家长 / 学生 onboarding
+- 实名认证接入抽象与开发态 mock
+- 老师资料、科目、服务区域、可预约时间
+- 家长、学生、地址簿
+- 预约占位、创建预约、接单、支付状态推进、改约、取消
+- 课程签到签退与课后反馈
+- 教师评价与评分汇总
+- 老师工作台、个人课表
+- CRM 线索 / 商机 / 任务 / 活动 / 工单 / 客户 360
+- 测试支持与固定 QA 场景
+
+当前仓库尚未真正落成的闭环：
+
+- 真实支付 / 钱包 / 清结算流程
+- 真实实名供应商全流程落地
+- 生产级短信限流 / 风控 / 审计
+- 生产级消息通知、超时任务、订单生命周期编排
+
+## 2. 技术栈与运行方式
+
+### 2.1 栈
+
+- NestJS 10
+- Prisma 7
+- PostgreSQL（README 指向 Supabase）
+- `jose` 自签 / 验签 JWT
+- Swagger
+- Jest 单元测试
+
+### 2.2 应用入口
+
+核心入口文件：
+
+- [`src/main.ts`](../src/main.ts)
+- [`src/app.module.ts`](../src/app.module.ts)
+
+启动行为：
+
+- 监听端口固定为 `5678`
+- 全局启用 `ValidationPipe`
+  - `whitelist: true`
+  - `transform: true`
+  - `forbidNonWhitelisted: true`
+- 开启 CORS
+  - 来源取 `ADMIN_CORS_ORIGIN`
+  - 默认 `http://localhost:3000`
+- Swagger 默认挂在 `/docs`
+
+### 2.3 包管理与脚本
+
+脚本定义在 [`package.json`](../package.json)：
+
+- `pnpm start:dev` 启动开发环境
+- `pnpm build` 构建 Nest
+- `pnpm test` 跑单测
+- `pnpm prisma:generate` 生成 Prisma Client
+- `pnpm prisma:migrate:deploy` 执行 migration
+- `pnpm prisma:push` 直接 push schema
+- `pnpm seed:demo` 写入基础业务演示数据
+- `pnpm seed:crm-demo` 写入 CRM 演示数据
+
+### 2.4 环境变量与数据库连接
+
+模板见 [`.env.example`](../.env.example)。
+
+需要特别注意一处“代码实际行为”：
+
+- Prisma migration 配置来自 [`prisma.config.ts`](../prisma.config.ts)
+  - 使用 `DIRECT_URL`
+- Nest 运行时 Prisma Client 在 [`src/prisma/prisma.service.ts`](../src/prisma/prisma.service.ts) 中创建
+  - 实际读取的是 `DATABASE_URL`
+
+也就是说：
+
+- 跑 migration 看 `DIRECT_URL`
+- 应用启动看 `DATABASE_URL`
+
+这一点比 README 里的部分描述更值得以后续代码为准。
+
+## 3. 目录结构
+
+```txt
+src/
+  auth/                   鉴权、登录方式、角色切换、onboarding、实名
+  prisma/                 Prisma 注入
+  subjects/               科目
+  teachers/               老师资料后台管理
+  teacher-availability/   老师可预约窗口与搜索
+  teacher-workbench/      老师工作台
+  guardians/              家长资料后台管理
+  students/               学生资料后台管理
+  addresses/              地址簿后台管理
+  bookings/               预约主流程、占位、支付状态、改约
+  lessons/                课程记录、签到签退、反馈
+  teacher-reviews/        课后评价
+  calendar/               家长/老师个人课表
+  crm/                    CRM 与 AI action
+  test-support/           固定 QA 场景与模拟支付
+  test-utils/             测试辅助
+
+prisma/
+  schema.prisma           核心数据模型
+  migrations/             SQL migration
+  seed-demo.ts            基础业务演示数据
+  seed-crm-demo.ts        CRM 演示数据
+
+docs/
+  auth-guide.md
+  schema-通俗说明.md
+  project-overview.md     当前这份文档
+```
+
+## 4. 推荐阅读顺序
+
+第一次接手这个项目，建议按下面顺序看：
+
+1. [`src/main.ts`](../src/main.ts)
+2. [`src/app.module.ts`](../src/app.module.ts)
+3. [`prisma/schema.prisma`](../prisma/schema.prisma)
+4. [`src/auth/auth.controller.ts`](../src/auth/auth.controller.ts)
+5. [`src/auth/auth.service.ts`](../src/auth/auth.service.ts)
+6. [`src/bookings/bookings.controller.ts`](../src/bookings/bookings.controller.ts)
+7. [`src/bookings/bookings.service.ts`](../src/bookings/bookings.service.ts)
+8. [`src/teacher-availability/teacher-availability.service.ts`](../src/teacher-availability/teacher-availability.service.ts)
+9. [`src/lessons/lessons.service.ts`](../src/lessons/lessons.service.ts)
+10. [`src/crm/crm.service.ts`](../src/crm/crm.service.ts)
+11. [`src/test-support/test-support.service.ts`](../src/test-support/test-support.service.ts)
+
+如果你的任务是：
+
+- 改登录 / token / 实名：先看 `src/auth/*`
+- 改预约链路：先看 `src/bookings/*` + `src/teacher-availability/*`
+- 改老师侧工作流：先看 `src/teachers/*`、`src/teacher-availability/*`、`src/teacher-workbench/*`
+- 改家长建档 / 下单上下文：先看 `src/auth/auth.service.ts` 中的 self guardian 系列方法
+- 改 CRM：先看 `src/crm/*`
+- 本地联调 / QA：先看 `prisma/seed-*.ts` 和 `src/test-support/*`
+
+## 5. 模块地图
+
+### 5.1 AuthModule
+
+核心文件：
+
+- [`src/auth/auth.module.ts`](../src/auth/auth.module.ts)
+- [`src/auth/auth.controller.ts`](../src/auth/auth.controller.ts)
+- [`src/auth/auth.service.ts`](../src/auth/auth.service.ts)
+
+职责：
+
+- 邮箱密码注册/登录
+- 手机验证码登录
+- 手机号 + 密码登录
+- 微信小程序登录
+- 微信 App 登录
+- 绑定手机号
+- 绑定邮箱密码
+- 找回密码
+- 角色切换
+- 读取 `/auth/me`
+- 自助更新老师 / 家长 / 学生资料
+- 自助完成 onboarding
+- 创建实名会话、开发态 mock 完成实名
+- 返回统一的 `AuthResponse`
+
+Auth 模块内部进一步拆分为：
+
+- `PasswordAuthService`
+- `SmsAuthService`
+- `WechatAuthService`
+- `IdentityLinkingService`
+- `ProfileBootstrapService`
+- `RealNameVerificationService`
+
+当前阶段的默认接入顺序：
+
+- 先接微信小程序登录
+- 先让用户以最小资料进入浏览态
+- 预约 / 下单 / 接单前再按 `onboardingState` 做 gating
+- 微信 App 登录能力先保留，但不是当前主入口
+
+### 5.2 PrismaModule
+
+文件：
+
+- [`src/prisma/prisma.service.ts`](../src/prisma/prisma.service.ts)
+
+职责：
+
+- 用 `@prisma/adapter-pg` + `DATABASE_URL` 创建 Prisma Client
+- 在 Nest module init / destroy 生命周期里连接和断开数据库
+
+### 5.3 SubjectsModule
+
+职责：
+
+- 科目基础数据 CRUD
+- 提供激活科目列表
+
+定位：
+
+- 偏基础字典表
+- 很多业务流程依赖 `Subject`
+
+### 5.4 TeachersModule
+
+职责：
+
+- 后台维护老师主档
+- 更新老师审核状态
+- 替换老师的科目、服务区域、可用性规则、资质材料
+
+注意：
+
+- 这是后台管理接口，不是老师自助接口
+- 老师自己的 onboarding 更新在 `AuthService` 里
+
+### 5.5 TeacherAvailabilityModule
+
+职责：
+
+- 根据周模板、临时开放、临时封锁、现有预约，计算老师可售卖时间窗
+- 搜索某个时间段可接单的老师
+- 给老师提供自助管理可预约规则的接口
+
+它是预约链路的前置模块。
+
+### 5.6 TeacherWorkbenchModule
+
+职责：
+
+- 给老师端提供待处理预约列表和详情
+- 汇总 `PENDING_ACCEPTANCE` / `PENDING_PAYMENT` / `CONFIRMED`
+
+### 5.7 GuardiansModule / StudentsModule / AddressesModule
+
+职责：
+
+- 这三组是后台 CRUD 视角
+- 面向管理员维护家长、学生、地址数据
+
+但家长自己的自助建档逻辑主要在：
+
+- [`src/auth/auth.service.ts`](../src/auth/auth.service.ts)
+  - `listSelfGuardianStudents`
+  - `createSelfGuardianStudent`
+  - `updateSelfGuardianStudent`
+  - `listSelfGuardianAddresses`
+  - `createSelfGuardianAddress`
+  - `updateSelfGuardianAddress`
+  - `updateSelfGuardianOnboarding`
+
+### 5.8 BookingsModule
+
+职责：
+
+- 后台直接创建预约
+- 家长先创建占位 `BookingHold`
+- 家长从占位生成正式预约
+- 老师接单 / 拒单
+- 家长确认计划
+- 更新支付状态
+- 取消预约
+- 发起改约、响应改约
+- 查看自己预约 / 后台查看全量预约
+
+这是当前最关键的业务中枢模块。
+
+### 5.9 LessonsModule
+
+职责：
+
+- 创建课程记录
+- 通过签到把预约推进到 `IN_PROGRESS`
+- 通过签退把预约推进到 `COMPLETED`
+- 记录老师总结、作业、成果视频、家长反馈
+
+### 5.10 TeacherReviewsModule
+
+职责：
+
+- 创建课后评价
+- 回写老师评分统计
+- 查询老师评价 summary
+
+### 5.11 CalendarModule
+
+职责：
+
+- 给家长 / 老师返回自己的课表视图
+- 实质上是按角色筛选 `Booking`，再附带 `Lesson` 状态
+
+### 5.12 CrmModule
+
+职责：
+
+- CRM 概览看板
+- 线索 / 商机 / 任务 / 活动 / 工单 CRUD
+- 客户列表
+- 客户 360 视图
+- CRM AI 动作解释与执行
+
+权限由 `CrmAccessGuard` 控制。
+
+### 5.13 TestSupportModule
+
+职责：
+
+- 暴露固定 QA 测试账号
+- 一键重置演示场景
+- 记录 QA 事件日志
+- 开发态模拟某个预约支付成功/失败
+
+这是本地联调和 demo 的捷径模块。
+
+## 6. 角色、鉴权与权限模型
+
+### 6.1 角色模型
+
+枚举定义在 [`prisma/schema.prisma`](../prisma/schema.prisma)：
+
+- `SUPER_ADMIN`
+- `ADMIN`
+- `TEACHER`
+- `STUDENT`
+- `GUARDIAN`
+
+一个用户可以拥有多个角色，关系表是 `UserRole`。
+
+### 6.2 Public role 与 admin role
+
+常量定义在 [`src/auth/auth.constants.ts`](../src/auth/auth.constants.ts)：
+
+- 公开可注册/补齐角色：`TEACHER`、`GUARDIAN`、`STUDENT`
+- `ADMIN`、`SUPER_ADMIN` 不能通过公开注册链路创建
+
+### 6.3 JWT 机制
+
+相关文件：
+
+- [`src/auth/token.util.ts`](../src/auth/token.util.ts)
+- [`src/auth/verify-jwt.ts`](../src/auth/verify-jwt.ts)
+- [`src/auth/supabase-auth.guard.ts`](../src/auth/supabase-auth.guard.ts)
+
+特点：
+
+- 并不依赖 Supabase Auth
+- 默认使用 `AUTH_JWT_SECRET` 做 HS256 自签
+- 如果配置了 `AUTH_JWKS_URL`，则改为远程 JWKS 验签
+- token payload 里会带 `activeRole`
+
+### 6.4 Guard 设计
+
+`JwtAuthGuard`
+
+- 只负责认证 token
+- 解析后把 `req.auth` 写成 `AuthenticatedUserContext`
+- 同时根据数据库里用户当前角色集合修正 `activeRole`
+
+`RolesGuard`
+
+- 读取 `@RequireRoles(...)`
+- 只允许当前 `activeRole` 命中要求的角色
+
+`CrmAccessGuard`
+
+- 不走 `activeRole` 细分
+- 只要用户拥有至少一个不在黑名单里的角色就允许进入 CRM
+- 当前被 CRM 屏蔽的角色：`TEACHER`、`STUDENT`
+- 也就是说，家长、管理员、超管都可以进入 CRM
+
+### 6.5 当前用户上下文
+
+常用装饰器：
+
+- [`src/auth/current-user.decorator.ts`](../src/auth/current-user.decorator.ts)
+
+控制器里通常使用：
+
+- `@CurrentUser() currentUser`
+
+后续 agent 如果要新增需要用户上下文的接口，基本沿用这套模式。
+
+## 7. 登录与身份合并策略
+
+### 7.1 支持的登录方式
+
+- 微信小程序登录
+- 邮箱 + 密码
+- 手机验证码
+- 手机号 + 密码
+- 微信 App OAuth
+
+### 7.2 身份绑定与 merge
+
+`IdentityLinkingService` 负责：
+
+- 查找 email / phone / wechat 是否已绑定用户
+- 给已有用户绑定手机号
+- 给已有用户绑定邮箱
+- WeChat 账号 upsert
+- 用户 merge
+
+这意味着项目设计目标是：
+
+- 同一个自然人可以通过多种登录方式汇聚到同一个 `User`
+- 不是每种方式都生成一个独立账号
+
+### 7.3 WeChat 登录
+
+`WechatAuthService` 的关键逻辑：
+
+- 小程序链路：
+  - 后端用 `code` 调 `jscode2session`
+  - 用 `unionId/openId` 查找是否已有绑定账号
+  - 首次登录必须显式带 `requestedRole`
+  - 没有账号时自动创建“最小用户 + 最小角色壳子”
+- App 链路：
+  - 后端用 `code` 换微信 access token
+  - 再拉微信用户信息
+  - 若已有账号但资料缺头像/昵称，会尝试补齐
+
+注意：
+
+- 当前前期启动阶段，主入口应视为“微信小程序登录”
+- 微信 App 登录能力已保留，但不应作为当前联调主线
+- 两条链路都依赖客户端先拿到 `code`
+
+## 8. Onboarding 与资料完成度
+
+`AuthService.buildAuthUserProfile()` 会动态计算三套 onboarding 状态：
+
+- `teacher`
+- `guardian`
+- `student`
+
+每个状态都会包含：
+
+- `profileExists`
+- `onboardingCompleted`
+- `completionPercent`
+- `missingRequiredItems`
+- `missingOptionalItems`
+
+### 8.1 老师完成度
+
+必填项包括：
+
+- 老师档案
+- 显示名
+- 个人简介
+- 就业类型
+- 课时费
+- 服务区域
+- 授课科目
+- 入驻协议
+- 实名认证
+
+最终能否接单，还要求：
+
+- `verificationStatus === APPROVED`
+
+也就是：
+
+- 完成 onboarding 不代表能接单
+- 还要审核通过
+
+### 8.2 家长完成度
+
+必填项包括：
+
+- 家长档案
+- 家长显示名
+- 手机号已验证
+- 紧急联系人
+- 紧急联系电话
+- 至少一个孩子
+- 孩子年级
+- 默认上课地址
+- 实名认证
+
+### 8.3 学生完成度
+
+必填项包括：
+
+- 学生档案
+- 学生显示名
+- 年级
+- 手机号已验证
+- 实名认证
+
+### 8.4 Onboarding 接口分层
+
+有两类更新接口：
+
+- “资料 patch”接口
+  - `updateSelfTeacherProfile`
+  - `updateSelfGuardianProfile`
+  - `updateSelfStudentProfile`
+- “onboarding 一次性 patch”接口
+  - `updateSelfTeacherOnboarding`
+  - `updateSelfGuardianOnboarding`
+  - `updateSelfStudentOnboarding`
+
+老师 / 家长 onboarding 接口会顺带处理关联对象：
+
+- 老师：科目、服务区域
+- 家长：学生、默认地址
+
+## 9. 预约主链路
+
+### 9.1 主要数据结构
+
+相关 model：
+
+- `Booking`
+- `BookingHold`
+- `RescheduleRequest`
+- `Lesson`
+- `TeacherReview`
+
+### 9.2 Booking 状态机
+
+代码里显式出现的主要状态：
+
+- `PENDING_ACCEPTANCE`
+- `PENDING_PAYMENT`
+- `CONFIRMED`
+- `IN_PROGRESS`
+- `COMPLETED`
+- `CANCELLED`
+- `REFUNDED`
+- `EXPIRED`
+
+一个典型链路：
+
+1. 家长创建占位 `BookingHold`
+2. 家长消费占位生成 `Booking`
+3. 初始状态 `PENDING_ACCEPTANCE`
+4. 老师接受后进入 `PENDING_PAYMENT`
+5. 支付成功后进入 `CONFIRMED`
+6. 自动/手动创建 `Lesson`
+7. 签到后进入 `IN_PROGRESS`
+8. 签退后进入 `COMPLETED`
+9. 完课后家长可创建 `TeacherReview`
+
+### 9.3 预约创建前的 gating
+
+`BookingsService.loadBookingContext()` 是预约链路最关键的 gating 方法之一。
+
+它会同时校验：
+
+- 老师档案是否存在
+- 老师是否审核通过
+- 学生档案是否存在
+- 家长档案是否存在
+- 科目是否存在
+- 服务地址是否存在
+- 老师是否开通该科目
+- 老师是否完成 onboarding
+- 老师是否完成实名认证
+- 若是学生独立下单：学生是否完成 onboarding + 实名
+- 若是家长代下单：
+  - 家长是否完成 onboarding
+  - 家长是否完成实名认证
+  - 家长是否对该学生有 `canBook`
+  - 地址是否属于当前家长账号
+
+也就是说，预约模块本身承担了强业务前置校验，而不是依赖前端保证。
+
+### 9.4 占位 `BookingHold`
+
+关键行为：
+
+- 只有家长可以创建占位
+- 占位有效期固定 `5` 分钟
+- 生成正式预约前会先清理过期占位
+- 占位阶段也会做老师 / 学生双向冲突校验
+- 同时也校验是否命中老师可售卖窗口
+
+### 9.5 预约冲突规则
+
+冲突状态集合：
+
+- `PENDING_ACCEPTANCE`
+- `PENDING_PAYMENT`
+- `CONFIRMED`
+- `IN_PROGRESS`
+
+冲突校验分为两层：
+
+- `ensureNoScheduleConflict`
+  - 避免老师时间冲突
+  - 避免学生时间冲突
+- `ensureNoHoldConflict`
+  - 避免老师被别的家长抢占同一时间段
+  - 避免学生同时占用多个待创建时段
+
+### 9.6 价格计算
+
+逻辑在 `BookingsService.calculateAmounts()`：
+
+- `subtotalAmount = hourlyRate * durationMinutes / 60`
+- `totalAmount = subtotal - discount + platformFee + travelFee`
+
+试课定价优先级：
+
+1. `teacherSubject.trialRate`
+2. `teacherSubject.hourlyRate`
+3. `teacherProfile.baseHourlyRate`
+
+### 9.7 支付状态与 Lesson 自动生成
+
+`updatePayment()` 的关键行为：
+
+- `PENDING_PAYMENT + PAID => CONFIRMED`
+- `REFUNDED => REFUNDED`
+- 支付成功且预约转 `CONFIRMED` 时，会 `upsert` 一条 `Lesson`
+
+注意：
+
+- 当前还没有真正的支付 provider 集成
+- `updatePayment()` 更像一个状态推进入口，适合开发态模拟或后续支付回调接入
+
+### 9.8 改约规则
+
+`createRescheduleRequest()` / `respondRescheduleRequest()` 规则较严格：
+
+- 只有家长或老师可发起
+- 发起方不能响应自己的改约请求
+- 建议时间必须显式带时区或 `Z`
+- 建议时间必须晚于当前时间
+- 当前预约状态必须允许改约
+- 同一预约不能同时存在多个待处理改约
+- 接受改约前会再次校验：
+  - 时间仍可售卖
+  - 老师 / 学生没有新的冲突
+
+## 10. 老师可预约时间计算
+
+核心逻辑在 [`src/teacher-availability/teacher-availability.service.ts`](../src/teacher-availability/teacher-availability.service.ts)。
+
+### 10.1 输入来源
+
+可预约窗口由三类数据叠加得出：
+
+- `TeacherAvailabilityRule`
+  - 周模板
+  - 指定日期的临时开放
+- `TeacherAvailabilityBlock`
+  - 临时封锁
+- 现有 `Booking`
+  - 占用中的预约会挡住窗口
+
+### 10.2 重要特点
+
+- 服务内部显式处理时区换算
+- 支持按老师查可预约窗口
+- 支持按时间 + 科目搜索可接单老师
+- 只允许 `APPROVED` 的老师被 discover / search
+
+### 10.3 老师自助配置接口
+
+老师端可以：
+
+- 查看自己的 weekly rules / blocks / extra slots
+- 整体替换 weekly rules
+- 添加或删除 block
+- 添加或删除 extra slot
+
+这部分可以视为“老师排班管理”的 MVP。
+
+## 11. 课程与评价
+
+### 11.1 Lesson
+
+`LessonsService` 负责：
+
+- 从 booking 创建 lesson
+- `checkIn`
+- `checkOut`
+- 更新出勤状态
+- 提交反馈
+
+和 booking 的联动：
+
+- check-in 会把 booking 推到 `IN_PROGRESS`
+- check-out 会把 booking 推到 `COMPLETED`
+
+### 11.2 TeacherReview
+
+`TeacherReviewsService` 负责：
+
+- 基于 booking 创建评价
+- 只允许一条 booking 对应一条 review
+- 创建 / 更新 / 删除 review 时同步老师 `ratingAvg`、`ratingCount`
+
+## 12. 家长/老师视图型接口
+
+### 12.1 Calendar
+
+`CalendarService.getMyCalendar()`：
+
+- 只支持 `GUARDIAN` / `TEACHER`
+- 本质上是按角色拉 `Booking`
+- 同时附带 `Lesson.attendanceStatus`
+
+### 12.2 TeacherWorkbench
+
+`TeacherWorkbenchService`：
+
+- 列出当前老师待处理 / 待支付 / 已确认预约
+- 返回摘要计数
+- 返回详细联系信息、地址、金额等
+
+这是老师端首页工作台数据源。
+
+## 13. CRM 模块
+
+### 13.1 CRM 能力边界
+
+`CrmService` 提供：
+
+- 概览 dashboard
+- `crmLead` 线索
+- `crmOpportunity` 商机
+- `crmTask` 任务
+- `crmActivity` 跟进记录
+- `crmCase` 工单
+- `listCustomers`
+- `getCustomer360`
+- 动作运行记录 `CrmActionRun`
+- 管理端审计日志 `AdminAuditLog`
+
+### 13.2 CRM 与业务域的连接
+
+CRM 并不是孤立子系统，它直接挂接业务对象：
+
+- `guardianProfileId`
+- `studentProfileId`
+- `teacherProfileId`
+- `bookingId`
+- `subjectId`
+
+`Customer360` 会聚合：
+
+- guardian 基础信息
+- 学生列表
+- lead / opportunity / task / activity / case
+- recent bookings
+- recent lessons
+- reviews
+
+### 13.3 CRM AI
+
+`CrmAiService` 当前不是接 LLM，而是“规则解释 + 受控执行器”。
+
+支持的动作包括：
+
+- `crm.lead.create`
+- `crm.task.create`
+- `crm.activity.create`
+- `crm.case.create`
+- `crm.opportunity.advance`
+- `crm.lead.delete`
+
+特点：
+
+- 每个动作都有 `riskLevel`
+- 高风险动作要求审批
+- 支持 `dryRun`
+- 每次预览 / 执行 / 失败都会写 `CrmActionRun`
+
+它更像“给 AI agent 留好的动作层”，而不是完整自然语言智能体。
+
+## 14. 数据模型速览
+
+按领域分组：
+
+### 14.1 账号与鉴权
+
+- `User`
+- `PasswordCredential`
+- `Account`
+- `AuthVerificationCode`
+- `Session`
+- `VerificationToken`
+- `Authenticator`
+- `UserRole`
+- `RealNameVerificationSession`
+
+### 14.2 老师域
+
+- `TeacherProfile`
+- `TeacherSubject`
+- `TeacherServiceArea`
+- `TeacherAvailabilityRule`
+- `TeacherAvailabilityBlock`
+- `TeacherCredential`
+- `TeacherPayoutAccount`
+- `Payout`
+
+### 14.3 家长 / 学生域
+
+- `StudentProfile`
+- `GuardianProfile`
+- `StudentGuardian`
+- `Address`
+
+### 14.4 预约履约域
+
+- `Subject`
+- `Booking`
+- `BookingHold`
+- `RescheduleRequest`
+- `Lesson`
+- `TeacherReview`
+
+### 14.5 资金域
+
+- `Wallet`
+- `PaymentIntent`
+- `WalletTransaction`
+
+### 14.6 CRM / 后台域
+
+- `CrmLead`
+- `CrmOpportunity`
+- `CrmTask`
+- `CrmActivity`
+- `CrmCase`
+- `CrmActionRun`
+- `AdminAuditLog`
+
+### 14.7 最关键关系
+
+- `User` 是所有身份的根
+- `TeacherProfile` / `GuardianProfile` / `StudentProfile` 都是 `User` 的业务壳
+- `TeacherSubject` 是老师与科目的多对多中间表
+- `StudentGuardian` 是家长与学生的多对多关系 + 权限表
+- `Booking` 是业务中枢
+- `Lesson` 和 `TeacherReview` 都从 `Booking` 长出来
+- CRM 多个对象直接引用 guardian / student / booking，方便做运营闭环
+
+## 15. 路由概览
+
+这里不重复 Swagger 的全部字段，只列模块入口，方便快速定位。
+
+### 15.1 认证与自助资料
+
+- `/auth/register`
+- `/auth/login`
+- `/auth/email/register`
+- `/auth/email/login`
+- `/auth/phone-password/login`
+- `/auth/sms/request-code`
+- `/auth/sms/verify`
+- `/auth/wechat/app-login`
+- `/auth/me`
+- `/auth/self/booking-context`
+- `/auth/self/guardian/students`
+- `/auth/self/guardian/addresses`
+- `/auth/role/switch`
+- `/auth/bind/*`
+- `/auth/password/reset/*`
+- `/auth/real-name/*`
+- `/auth/self/*-profile`
+- `/auth/self/*-onboarding`
+
+### 15.2 预约与课务
+
+- `/bookings/*`
+- `/lessons/*`
+- `/teacher-reviews/*`
+- `/calendar/me`
+- `/teacher-workbench/*`
+- `/teacher-availability/*`
+
+### 15.3 后台资源管理
+
+- `/teachers/*`
+- `/students/*`
+- `/guardians/*`
+- `/addresses/*`
+- `/subjects/*`
+
+### 15.4 CRM
+
+- `/crm/overview`
+- `/crm/customers`
+- `/crm/leads`
+- `/crm/opportunities`
+- `/crm/tasks`
+- `/crm/activities`
+- `/crm/cases`
+- `/crm/ai/*`
+
+### 15.5 QA 支持
+
+- `/test-support/qa-scenario`
+- `/test-support/qa-scenario/reset`
+- `/test-support/qa-scenario/mock-payment`
+
+## 16. Seed、测试与 QA
+
+### 16.1 演示 seed
+
+[`prisma/seed-demo.ts`](../prisma/seed-demo.ts)
+
+会生成：
+
+- 科目
+- 老师
+- 家长
+- 学生
+- 地址
+- 预约等基础业务数据
+
+特点：
+
+- 使用 `SEED_DEMO_PASSWORD` 控制默认密码
+- 默认密码为 `TuneTime123!`
+- 使用 `runTag` 区分本次 seed 批次
+
+[`prisma/seed-crm-demo.ts`](../prisma/seed-crm-demo.ts)
+
+依赖基础业务数据存在，再生成：
+
+- CRM staff 账号
+- leads
+- opportunities
+- tasks
+- activities
+- cases
+
+### 16.2 TestSupport
+
+适合联调时直接使用：
+
+- 读取固定测试账号
+- 重置场景
+- 模拟支付成功 / 失败
+
+默认启用条件：
+
+- `TEST_SUPPORT_ENABLED=true`
+- 或者当前环境不是 production
+
+### 16.3 测试覆盖现状
+
+项目当前以 service 单测为主，覆盖比较完整的模块有：
+
+- `auth`
+- `addresses`
+- `bookings`
+- `guardians`
+- `lessons`
+- `students`
+- `subjects`
+- `teacher-availability`
+- `teacher-reviews`
+- `teacher-workbench`
+- `test-support`
+
+可以从 spec 文件名快速判断改动后应优先补哪块测试。
+
+## 17. 代码中的开发态 / 生产态分界
+
+### 17.1 短信
+
+在 [`src/auth/auth.module.ts`](../src/auth/auth.module.ts) 里通过工厂动态选择：
+
+- 配齐腾讯云参数 => `TencentSmsGateway`
+- 否则 => `DevelopmentSmsGateway`
+
+开发态行为：
+
+- 只打印验证码到日志，不真实发送
+
+### 17.2 实名
+
+同样在 `AuthModule` 动态选择：
+
+- `REAL_NAME_PROVIDER === TENCENT_H5` 且参数齐全 => `TencentRealNameGateway`
+- 否则 => `DevelopmentRealNameGateway`
+
+开发态行为：
+
+- 创建 mock session
+- 通过 `/auth/real-name/mock/complete` 人工完成实名认证
+
+### 17.3 支付
+
+当前没有真实支付 provider 代码。
+
+现状更像：
+
+- 预约状态机已设计
+- 支付状态可手动推进
+- `test-support` 可模拟支付结果
+- `PaymentIntent/Wallet/Payout` schema 已预留
+
+## 18. 后续 agent 常见任务的落点建议
+
+### 18.1 新增登录方式
+
+优先查看：
+
+- `src/auth/auth.controller.ts`
+- `src/auth/auth.service.ts`
+- `src/auth/identity-linking.service.ts`
+- `src/auth/profile-bootstrap.service.ts`
+
+### 18.2 改预约规则
+
+优先查看：
+
+- `src/bookings/bookings.service.ts`
+- `src/teacher-availability/teacher-availability.service.ts`
+- `prisma/schema.prisma`
+
+### 18.3 改家长 onboarding / 下单前置条件
+
+优先查看：
+
+- `src/auth/auth.service.ts`
+- `src/bookings/bookings.service.ts`
+
+### 18.4 改老师排班
+
+优先查看：
+
+- `src/teacher-availability/teacher-availability.service.ts`
+- `src/teachers/teachers.service.ts`
+
+### 18.5 改老师端首页 / 课表接口
+
+优先查看：
+
+- `src/teacher-workbench/teacher-workbench.service.ts`
+- `src/calendar/calendar.service.ts`
+
+### 18.6 改 CRM
+
+优先查看：
+
+- `src/crm/crm.controller.ts`
+- `src/crm/crm.service.ts`
+- `src/crm/crm-ai.service.ts`
+- `src/crm/crm-access.guard.ts`
+
+## 19. 当前已知注意点
+
+1. README 里对运行时连库的描述与当前 `PrismaService` 实现并不完全一致，后续以代码为准。
+2. `BookingsService.loadBookingContext()` 使用了部分 raw SQL 去读用户实名与 onboarding 字段，改 schema 时要同步关注这里。
+3. 老师自助 onboarding 和后台老师管理是两套入口，改老师资料字段时通常要同时检查 `AuthService` 和 `TeachersService`。
+4. 预约与老师可用性是强耦合关系，任何时间规则改动都要回头看 `BookingsService` 的 sellable window / conflict 校验。
+5. 资金域 schema 很完整，但业务实现还没闭环，不要误判成“已经支持真实支付提现”。
+6. CRM AI 当前是受控 action 层，不是通用 LLM agent；如果要接大模型，最好复用它的 action catalog / 审批记录结构。
+
+## 20. 一句话总结
+
+这是一个以 NestJS + Prisma 实现的上门音乐私教平台后端，核心已经覆盖“账号与角色 -> onboarding/实名 -> 老师排班 -> 家长占位约课 -> 接单支付 -> 上课评价 -> CRM 跟进”的主干链路；其中预约与鉴权是最核心的两个中枢模块，后续所有 agent 改动基本都应先围绕这两处建立上下文。

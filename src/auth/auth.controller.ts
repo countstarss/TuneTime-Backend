@@ -44,6 +44,7 @@ import {
   SmsRequestCodeDto,
   SmsVerifyDto,
   WechatAppLoginDto,
+  WechatMiniappLoginDto,
 } from './dto/auth.dto';
 import { StudentResponseDto } from '../students/dto/student-response.dto';
 import { AddressResponseDto } from '../addresses/dto/address-response.dto';
@@ -112,6 +113,13 @@ export class AuthController {
   @ApiOkResponse({ type: AuthResponseDto })
   async loginWithWechatApp(@Body() dto: WechatAppLoginDto) {
     return this.authService.loginWithWechatApp(dto);
+  }
+
+  @Post('wechat/miniapp-login')
+  @ApiOperation({ summary: '微信小程序快捷登录' })
+  @ApiOkResponse({ type: AuthResponseDto })
+  async loginWithWechatMiniapp(@Body() dto: WechatMiniappLoginDto) {
+    return this.authService.loginWithWechatMiniapp(dto);
   }
 
   @UseGuards(JwtAuthGuard)
