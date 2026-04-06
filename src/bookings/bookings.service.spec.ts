@@ -1,14 +1,21 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import {
+  BookingCompletionStatus,
   BookingCancellationReason,
+  BookingExceptionCaseStatus,
+  BookingExceptionStatus,
+  BookingExceptionType,
   BookingStatus,
   PaymentStatus,
   PlatformRole,
+  ResponsibilityType,
+  SettlementReadiness,
   TeacherVerificationStatus,
   UserStatus,
 } from '@prisma/client';
 import { createKnownRequestError } from '../test-utils/prisma-test.utils';
 import { BookingsService } from './bookings.service';
+import { ManualRepairAction } from './dto/manual-repair-booking.dto';
 
 describe('BookingsService', () => {
   const bookingEntity = {
@@ -118,6 +125,13 @@ describe('BookingsService', () => {
     studentGuardian: {
       findFirst: jest.fn(),
     },
+    bookingHold: {
+      updateMany: jest.fn(),
+      findFirst: jest.fn(),
+      create: jest.fn(),
+      findUnique: jest.fn(),
+      update: jest.fn(),
+    },
     booking: {
       create: jest.fn(),
       findMany: jest.fn(),
@@ -126,6 +140,16 @@ describe('BookingsService', () => {
       findFirst: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
+    },
+    bookingExceptionCase: {
+      count: jest.fn(),
+      findUnique: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      updateMany: jest.fn(),
+    },
+    adminAuditLog: {
+      create: jest.fn(),
     },
     $queryRawUnsafe: jest.fn(),
     $transaction: jest.fn(),
@@ -155,7 +179,14 @@ describe('BookingsService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    delete process.env.DEV_MVP_RELAXATIONS_ENABLED;
     prisma.$queryRawUnsafe.mockResolvedValue([]);
+    prisma.guardianProfile.findUnique.mockResolvedValue(
+      bookingEntity.guardianProfile,
+    );
+    prisma.bookingHold.updateMany.mockResolvedValue({ count: 0 });
+    prisma.bookingHold.findFirst.mockResolvedValue(null);
+    prisma.bookingHold.update.mockResolvedValue(undefined);
     service = new BookingsService(
       prisma as never,
       teacherAvailabilityService as never,
@@ -179,16 +210,11 @@ describe('BookingsService', () => {
       hourlyRate: { toString: () => '180' },
       trialRate: { toString: () => '99' },
     });
-    prisma.$queryRawUnsafe
-      .mockResolvedValueOnce([
-        { real_name_verified_at: new Date('2026-03-18T00:00:00.000Z') },
-      ])
-      .mockResolvedValueOnce([
-        {
-          onboarding_completed_at: new Date('2026-03-18T00:00:00.000Z'),
-          real_name_verified_at: new Date('2026-03-18T00:00:00.000Z'),
-        },
-      ]);
+    prisma.$queryRawUnsafe.mockResolvedValueOnce([
+      {
+        onboarding_completed_at: new Date('2026-03-18T00:00:00.000Z'),
+      },
+    ]);
     prisma.studentGuardian.findFirst.mockResolvedValue({
       id: 'student_guardian_1',
     });
@@ -234,7 +260,13 @@ describe('BookingsService', () => {
     expect(result.items[0].subject.code).toBe('PIANO');
   });
 
-  it('should reject booking when guardian has not completed real-name verification', async () => {
+  it('should allow create hold during dev MVP even when guardian has not completed real-name verification', async () => {
+    process.env.DEV_MVP_RELAXATIONS_ENABLED = 'true';
+    service = new BookingsService(
+      prisma as never,
+      teacherAvailabilityService as never,
+    );
+
     prisma.teacherProfile.findUnique.mockResolvedValue(
       bookingEntity.teacherProfile,
     );
@@ -254,28 +286,163 @@ describe('BookingsService', () => {
       hourlyRate: { toString: () => '180' },
       trialRate: { toString: () => '99' },
     });
-    prisma.$queryRawUnsafe
-      .mockResolvedValueOnce([
-        { real_name_verified_at: new Date('2026-03-18T00:00:00.000Z') },
-      ])
-      .mockResolvedValueOnce([
-        {
-          onboarding_completed_at: new Date('2026-03-18T00:00:00.000Z'),
-          real_name_verified_at: null,
+    prisma.$queryRawUnsafe.mockResolvedValueOnce([
+      {
+        onboarding_completed_at: new Date('2026-03-18T00:00:00.000Z'),
+      },
+    ]);
+    prisma.studentGuardian.findFirst.mockResolvedValue({
+      id: 'student_guardian_1',
+    });
+    prisma.booking.findFirst.mockResolvedValue(null);
+    teacherAvailabilityService.hasSellableWindow.mockResolvedValue(true);
+    prisma.bookingHold.create.mockResolvedValue({
+      id: 'hold_1',
+      teacherProfileId: 'teacher_1',
+      studentProfileId: 'student_1',
+      guardianProfileId: 'guardian_1',
+      subjectId: 'subject_1',
+      serviceAddressId: 'addr_1',
+      startAt: new Date('2026-03-20T09:00:00.000Z'),
+      endAt: new Date('2026-03-20T10:00:00.000Z'),
+      status: 'ACTIVE',
+      expiresAt: new Date('2026-03-20T08:05:00.000Z'),
+      timezone: 'Asia/Shanghai',
+    });
+
+    const result = await service.createHold(guardianUser, {
+      teacherProfileId: 'teacher_1',
+      studentProfileId: 'student_1',
+      subjectId: 'subject_1',
+      serviceAddressId: 'addr_1',
+      startAt: '2026-03-20T09:00:00.000Z',
+      endAt: '2026-03-20T10:00:00.000Z',
+      notes: '门口需要刷卡',
+    });
+
+    expect(result.id).toBe('hold_1');
+    expect(prisma.bookingHold.create).toHaveBeenCalled();
+    expect(teacherAvailabilityService.hasSellableWindow).toHaveBeenCalledWith(
+      'teacher_1',
+      new Date('2026-03-20T09:00:00.000Z'),
+      new Date('2026-03-20T10:00:00.000Z'),
+    );
+  });
+
+  it('should create booking from hold during dev MVP even when guardian has not completed real-name verification', async () => {
+    process.env.DEV_MVP_RELAXATIONS_ENABLED = 'true';
+    service = new BookingsService(
+      prisma as never,
+      teacherAvailabilityService as never,
+    );
+
+    prisma.teacherProfile.findUnique.mockResolvedValue(
+      bookingEntity.teacherProfile,
+    );
+    prisma.studentProfile.findUnique.mockResolvedValue(
+      bookingEntity.studentProfile,
+    );
+    prisma.guardianProfile.findUnique.mockResolvedValue({
+      ...bookingEntity.guardianProfile,
+      user: {
+        realNameVerifiedAt: null,
+      },
+    });
+    prisma.subject.findUnique.mockResolvedValue(bookingEntity.subject);
+    prisma.address.findUnique.mockResolvedValue(bookingEntity.serviceAddress);
+    prisma.teacherSubject.findFirst.mockResolvedValue({
+      id: 'teacher_subject_1',
+      hourlyRate: { toString: () => '180' },
+      trialRate: { toString: () => '99' },
+    });
+    prisma.$queryRawUnsafe.mockResolvedValueOnce([
+      {
+        onboarding_completed_at: new Date('2026-03-18T00:00:00.000Z'),
+      },
+    ]);
+    prisma.studentGuardian.findFirst.mockResolvedValue({
+      id: 'student_guardian_1',
+    });
+    prisma.booking.findFirst.mockResolvedValue(null);
+    prisma.bookingHold.findUnique.mockResolvedValue({
+      id: 'hold_1',
+      teacherProfileId: 'teacher_1',
+      studentProfileId: 'student_1',
+      guardianProfileId: 'guardian_1',
+      subjectId: 'subject_1',
+      serviceAddressId: 'addr_1',
+      startAt: new Date('2026-03-20T09:00:00.000Z'),
+      endAt: new Date('2026-03-20T10:00:00.000Z'),
+      timezone: 'Asia/Shanghai',
+      status: 'ACTIVE',
+      expiresAt: new Date('2099-03-20T08:05:00.000Z'),
+      createdByUserId: 'user_guardian_1',
+    });
+    prisma.$transaction.mockImplementation(async (callback: any) =>
+      callback({
+        bookingHold: prisma.bookingHold,
+        booking: {
+          create: jest.fn().mockResolvedValue({
+            ...bookingEntity,
+            isTrial: false,
+            planSummary: '首节课先做启蒙评估',
+            notes: '门口有门禁，请提前联系。',
+          }),
         },
-      ]);
+      }),
+    );
+
+    const result = await service.createFromHold(guardianUser, {
+      holdId: 'hold_1',
+      isTrial: false,
+      planSummary: '首节课先做启蒙评估',
+      notes: '门口有门禁，请提前联系。',
+    });
+
+    expect(prisma.bookingHold.update).toHaveBeenCalledWith({
+      where: { id: 'hold_1' },
+      data: { status: 'CONSUMED' },
+    });
+    expect(result.status).toBe(BookingStatus.PENDING_ACCEPTANCE);
+    expect(result.planSummary).toBe('首节课先做启蒙评估');
+  });
+
+  it('should reject create hold without guardian real-name verification when dev MVP relaxations are disabled', async () => {
+    prisma.teacherProfile.findUnique.mockResolvedValue(
+      bookingEntity.teacherProfile,
+    );
+    prisma.studentProfile.findUnique.mockResolvedValue(
+      bookingEntity.studentProfile,
+    );
+    prisma.guardianProfile.findUnique.mockResolvedValue({
+      ...bookingEntity.guardianProfile,
+      user: {
+        realNameVerifiedAt: null,
+      },
+    });
+    prisma.subject.findUnique.mockResolvedValue(bookingEntity.subject);
+    prisma.address.findUnique.mockResolvedValue(bookingEntity.serviceAddress);
+    prisma.teacherSubject.findFirst.mockResolvedValue({
+      id: 'teacher_subject_1',
+      hourlyRate: { toString: () => '180' },
+      trialRate: { toString: () => '99' },
+    });
+    prisma.$queryRawUnsafe.mockResolvedValueOnce([
+      {
+        onboarding_completed_at: new Date('2026-03-18T00:00:00.000Z'),
+      },
+    ]);
 
     await expect(
-      service.create({
+      service.createHold(guardianUser, {
         teacherProfileId: 'teacher_1',
         studentProfileId: 'student_1',
-        guardianProfileId: 'guardian_1',
         subjectId: 'subject_1',
         serviceAddressId: 'addr_1',
         startAt: '2026-03-20T09:00:00.000Z',
         endAt: '2026-03-20T10:00:00.000Z',
       }),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    ).rejects.toThrow('当前家长尚未完成实名认证，不能创建预约');
   });
 
   it('should move booking to pending payment after acceptance', async () => {
@@ -383,6 +550,84 @@ describe('BookingsService', () => {
 
     await expect(service.findByBookingNo('BK404')).rejects.toBeInstanceOf(
       NotFoundException,
+    );
+  });
+
+  it('should clear blocking flags after manual check-out resolves the last exception', async () => {
+    const bookingWithException = {
+      ...bookingEntity,
+      status: BookingStatus.IN_PROGRESS,
+      completionStatus: BookingCompletionStatus.DISPUTED,
+      exceptionStatus: BookingExceptionStatus.BLOCKING,
+      settlementReadiness: SettlementReadiness.BLOCKED,
+      exceptionCases: [
+        {
+          id: 'case_1',
+          exceptionType: BookingExceptionType.OVERDUE_NOT_FINISHED,
+          status: BookingExceptionCaseStatus.OPEN,
+          responsibilityType: ResponsibilityType.UNKNOWN,
+          summary: '已过下课时间，老师仍未签退',
+          resolution: null,
+          createdByUserId: 'user_guardian_1',
+          resolvedByUserId: null,
+          createdAt: new Date('2026-03-20T10:30:00.000Z'),
+          updatedAt: new Date('2026-03-20T10:30:00.000Z'),
+        },
+      ],
+    };
+
+    prisma.booking.findUnique
+      .mockResolvedValueOnce(bookingWithException)
+      .mockResolvedValueOnce({
+        ...bookingWithException,
+        status: BookingStatus.COMPLETED,
+        completionStatus: BookingCompletionStatus.PENDING_TEACHER_RECORD,
+        exceptionStatus: BookingExceptionStatus.NONE,
+        settlementReadiness: SettlementReadiness.NOT_READY,
+      });
+    prisma.adminAuditLog.create.mockResolvedValue(undefined);
+    prisma.$transaction.mockImplementation(async (callback: any) =>
+      callback({
+        lesson: {
+          findUnique: jest.fn().mockResolvedValue({
+            id: 'lesson_1',
+            startedAt: new Date('2026-03-20T09:00:00.000Z'),
+            checkInAt: new Date('2026-03-20T09:00:00.000Z'),
+          }),
+          update: jest.fn().mockResolvedValue(undefined),
+        },
+        booking: {
+          update: jest.fn().mockResolvedValue(undefined),
+        },
+        bookingExceptionCase: {
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+          count: jest.fn().mockResolvedValue(0),
+        },
+      }),
+    );
+
+    const result = await service.manualRepair(
+      {
+        userId: 'admin_1',
+        activeRole: PlatformRole.ADMIN,
+        roles: [PlatformRole.ADMIN],
+        status: UserStatus.ACTIVE,
+        tokenPayload: {},
+      },
+      'booking_1',
+      {
+        action: ManualRepairAction.CHECK_OUT,
+        note: '后台补录签退',
+        exceptionType: BookingExceptionType.OVERDUE_NOT_FINISHED,
+        checkOutAt: '2026-03-20T10:05:00.000Z',
+      },
+    );
+
+    expect(result.status).toBe(BookingStatus.COMPLETED);
+    expect(result.exceptionStatus).toBe(BookingExceptionStatus.NONE);
+    expect(result.settlementReadiness).toBe(SettlementReadiness.NOT_READY);
+    expect(result.completionStatus).toBe(
+      BookingCompletionStatus.PENDING_TEACHER_RECORD,
     );
   });
 });

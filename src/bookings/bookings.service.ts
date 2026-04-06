@@ -1,39 +1,56 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import {
   Booking,
+  BookingCompletionStatus,
   BookingCancellationReason,
+  BookingExceptionCaseStatus,
+  BookingExceptionStatus,
+  BookingExceptionType,
   BookingHoldStatus,
   BookingStatus,
+  LessonAttendanceStatus,
   PaymentStatus,
   PlatformRole,
   Prisma,
+  ResponsibilityType,
   RescheduleRequestStatus,
+  SettlementReadiness,
   TeacherVerificationStatus,
 } from '@prisma/client';
 import { AuthenticatedUserContext } from '../auth/auth.types';
+import { isDevMvpRelaxationEnabled } from '../common/dev-mvp.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { TeacherAvailabilityService } from '../teacher-availability/teacher-availability.service';
 import { AcceptBookingDto } from './dto/accept-booking.dto';
+import { ArriveBookingDto } from './dto/arrive-booking.dto';
 import { BookingHoldResponseDto } from './dto/booking-hold-response.dto';
 import {
   BookingListResponseDto,
   BookingResponseDto,
   BookingRescheduleRequestDto,
   DeleteBookingResponseDto,
+  BookingExceptionCaseDto,
 } from './dto/booking-response.dto';
 import { CancelBookingDto } from './dto/cancel-booking.dto';
+import { CompleteBookingDto } from './dto/complete-booking.dto';
 import { ConfirmBookingDto } from './dto/confirm-booking.dto';
 import { CreateBookingFromHoldDto } from './dto/create-booking-from-hold.dto';
 import { CreateBookingHoldDto } from './dto/create-booking-hold.dto';
+import { CreateBookingDisputeDto } from './dto/create-booking-dispute.dto';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { CreateRescheduleRequestDto } from './dto/create-reschedule-request.dto';
 import { ListBookingsQueryDto } from './dto/list-bookings-query.dto';
 import { ListMyBookingsQueryDto } from './dto/list-my-bookings-query.dto';
+import {
+  ManualRepairAction,
+  ManualRepairBookingDto,
+} from './dto/manual-repair-booking.dto';
 import {
   BookingTeacherResponseAction,
   RespondBookingDto,
@@ -42,6 +59,7 @@ import {
   RescheduleResponseAction,
   RespondRescheduleRequestDto,
 } from './dto/respond-reschedule-request.dto';
+import { ResolveBookingDisputeDto } from './dto/resolve-booking-dispute.dto';
 import { UpdateBookingPaymentDto } from './dto/update-booking-payment.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
 
@@ -94,6 +112,26 @@ type BookingWithRelations = Booking & {
     respondedByUserId: string | null;
     createdAt: Date;
   }>;
+  lesson: {
+    id: string;
+    attendanceStatus: LessonAttendanceStatus;
+    arrivalConfirmedAt: Date | null;
+    feedbackSubmittedAt: Date | null;
+    checkInAt: Date | null;
+    checkOutAt: Date | null;
+  } | null;
+  exceptionCases: Array<{
+    id: string;
+    exceptionType: BookingExceptionType;
+    status: BookingExceptionCaseStatus;
+    responsibilityType: ResponsibilityType;
+    summary: string;
+    resolution: string | null;
+    createdByUserId: string | null;
+    resolvedByUserId: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }>;
 };
 
 type BookingContext = {
@@ -104,6 +142,9 @@ type BookingContext = {
     verificationStatus: TeacherVerificationStatus;
     onboardingCompletedAt: Date | null;
     baseHourlyRate: Prisma.Decimal;
+    user: {
+      realNameVerifiedAt: Date | null;
+    } | null;
   };
   studentProfile: {
     id: string;
@@ -116,6 +157,9 @@ type BookingContext = {
     userId: string;
     displayName: string;
     phone: string | null;
+    user: {
+      realNameVerifiedAt: Date | null;
+    } | null;
   } | null;
   subject: {
     id: string;
@@ -144,6 +188,8 @@ type BookingContext = {
 
 @Injectable()
 export class BookingsService {
+  private readonly devMvpRelaxationEnabled = isDevMvpRelaxationEnabled();
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly teacherAvailabilityService: TeacherAvailabilityService,
@@ -285,6 +331,31 @@ export class BookingsService {
           createdAt: true,
         },
       },
+      lesson: {
+        select: {
+          id: true,
+          attendanceStatus: true,
+          arrivalConfirmedAt: true,
+          feedbackSubmittedAt: true,
+          checkInAt: true,
+          checkOutAt: true,
+        },
+      },
+      exceptionCases: {
+        orderBy: [{ createdAt: 'desc' }],
+        select: {
+          id: true,
+          exceptionType: true,
+          status: true,
+          responsibilityType: true,
+          summary: true,
+          resolution: true,
+          createdByUserId: true,
+          resolvedByUserId: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      },
     } satisfies Prisma.BookingInclude;
   }
 
@@ -302,6 +373,23 @@ export class BookingsService {
       respondedAt: request.respondedAt,
       respondedByUserId: request.respondedByUserId,
       createdAt: request.createdAt,
+    };
+  }
+
+  private toExceptionCaseDto(
+    exceptionCase: BookingWithRelations['exceptionCases'][number],
+  ): BookingExceptionCaseDto {
+    return {
+      id: exceptionCase.id,
+      exceptionType: exceptionCase.exceptionType,
+      status: exceptionCase.status,
+      responsibilityType: exceptionCase.responsibilityType,
+      summary: exceptionCase.summary,
+      resolution: exceptionCase.resolution,
+      createdByUserId: exceptionCase.createdByUserId,
+      resolvedByUserId: exceptionCase.resolvedByUserId,
+      createdAt: exceptionCase.createdAt,
+      updatedAt: exceptionCase.updatedAt,
     };
   }
 
@@ -335,6 +423,10 @@ export class BookingsService {
       currency: booking.currency,
       paymentStatus: booking.paymentStatus,
       paymentDueAt: booking.paymentDueAt,
+      completionStatus: booking.completionStatus,
+      completionConfirmedAt: booking.completionConfirmedAt,
+      exceptionStatus: booking.exceptionStatus,
+      settlementReadiness: booking.settlementReadiness,
       planSummary: booking.planSummary,
       notes: booking.notes,
       teacher: {
@@ -375,6 +467,9 @@ export class BookingsService {
       },
       rescheduleRequests: booking.rescheduleRequests.map((item) =>
         this.toRescheduleRequestDto(item),
+      ),
+      exceptionCases: (booking.exceptionCases ?? []).map((item) =>
+        this.toExceptionCaseDto(item),
       ),
       createdAt: booking.createdAt,
       updatedAt: booking.updatedAt,
@@ -504,6 +599,147 @@ export class BookingsService {
     return booking.teacherProfileId;
   }
 
+  private isAdminUser(currentUser: AuthenticatedUserContext): boolean {
+    return (
+      currentUser.activeRole === PlatformRole.ADMIN ||
+      currentUser.activeRole === PlatformRole.SUPER_ADMIN
+    );
+  }
+
+  private async ensureBookingAccess(
+    currentUser: AuthenticatedUserContext,
+    booking: BookingWithRelations,
+  ): Promise<void> {
+    if (this.isAdminUser(currentUser)) {
+      return;
+    }
+
+    if (currentUser.activeRole === PlatformRole.GUARDIAN) {
+      await this.assertGuardianCanAccessBooking(currentUser, booking);
+      return;
+    }
+
+    if (currentUser.activeRole === PlatformRole.TEACHER) {
+      await this.assertTeacherCanAccessBooking(currentUser, booking);
+      return;
+    }
+
+    throw new ForbiddenException('当前账号无权访问该预约');
+  }
+
+  private async createAdminAuditLog(input: {
+    actorUserId: string;
+    action: string;
+    targetType: string;
+    targetId?: string | null;
+    payload?: Prisma.InputJsonValue;
+  }) {
+    await this.prisma.adminAuditLog.create({
+      data: {
+        actorUserId: input.actorUserId,
+        action: input.action,
+        targetType: input.targetType,
+        targetId: input.targetId ?? null,
+        payload: input.payload,
+      },
+    });
+  }
+
+  private getSettlementReadinessAfterExceptionResolve(
+    bookingStatus: BookingStatus,
+    completionStatus: BookingCompletionStatus,
+    requested?: SettlementReadiness,
+  ): SettlementReadiness {
+    if (requested) {
+      return requested;
+    }
+
+    if (
+      bookingStatus === BookingStatus.CANCELLED ||
+      bookingStatus === BookingStatus.REFUNDED ||
+      bookingStatus === BookingStatus.EXPIRED
+    ) {
+      return SettlementReadiness.BLOCKED;
+    }
+
+    if (bookingStatus !== BookingStatus.COMPLETED) {
+      return SettlementReadiness.NOT_READY;
+    }
+
+    if (
+      completionStatus === BookingCompletionStatus.GUARDIAN_CONFIRMED ||
+      completionStatus === BookingCompletionStatus.AUTO_CONFIRMED
+    ) {
+      return SettlementReadiness.READY;
+    }
+
+    return SettlementReadiness.NOT_READY;
+  }
+
+  private async countOpenExceptionCases(
+    tx: Prisma.TransactionClient,
+    bookingId: string,
+  ): Promise<number> {
+    return tx.bookingExceptionCase.count({
+      where: {
+        bookingId,
+        status: {
+          in: [
+            BookingExceptionCaseStatus.OPEN,
+            BookingExceptionCaseStatus.WAITING_TEACHER,
+            BookingExceptionCaseStatus.WAITING_GUARDIAN,
+            BookingExceptionCaseStatus.WAITING_ADMIN,
+          ],
+        },
+      },
+    });
+  }
+
+  private buildDisputeMetadata(input: {
+    currentUser: AuthenticatedUserContext;
+    dto: CreateBookingDisputeDto;
+    existingCase?: {
+      status: BookingExceptionCaseStatus;
+      resolution: string | null;
+      resolvedByUserId: string | null;
+      metadata: Prisma.JsonValue | null;
+    } | null;
+  }): Prisma.InputJsonValue {
+    const detail = input.dto.detail?.trim() || null;
+    const evidenceItems = input.dto.evidenceItems?.map((item) => ({
+      url: item.url,
+      note: item.note?.trim() || null,
+    })) ?? [];
+    const baseMetadata =
+      input.existingCase?.metadata &&
+      typeof input.existingCase.metadata === 'object' &&
+      !Array.isArray(input.existingCase.metadata)
+        ? (input.existingCase.metadata as Record<string, Prisma.JsonValue>)
+        : {};
+    const existingHistory = Array.isArray(baseMetadata.reopenHistory)
+      ? [...baseMetadata.reopenHistory]
+      : [];
+
+    if (input.existingCase) {
+      existingHistory.push({
+        reopenedAt: new Date().toISOString(),
+        reopenedByUserId: input.currentUser.userId,
+        previousStatus: input.existingCase.status,
+        previousResolution: input.existingCase.resolution,
+        previousResolvedByUserId: input.existingCase.resolvedByUserId,
+      });
+    }
+
+    return {
+      ...baseMetadata,
+      detail,
+      evidenceItems,
+      reporterRole: input.currentUser.activeRole,
+      reporterUserId: input.currentUser.userId,
+      reopenHistory: existingHistory,
+    };
+  }
+
   private async expireStaleHolds() {
     await this.prisma.bookingHold.updateMany({
       where: {
@@ -584,6 +820,11 @@ export class BookingsService {
           verificationStatus: true,
           onboardingCompletedAt: true,
           baseHourlyRate: true,
+          user: {
+            select: {
+              realNameVerifiedAt: true,
+            },
+          },
         },
       }),
       prisma.studentProfile.findUnique({
@@ -603,6 +844,11 @@ export class BookingsService {
               userId: true,
               displayName: true,
               phone: true,
+              user: {
+                select: {
+                  realNameVerifiedAt: true,
+                },
+              },
             },
           })
         : Promise.resolve(null),
@@ -649,6 +895,7 @@ export class BookingsService {
     }
 
     if (
+      !this.devMvpRelaxationEnabled &&
       teacherProfile.verificationStatus !== TeacherVerificationStatus.APPROVED
     ) {
       throw new BadRequestException('当前老师尚未审核通过，不能创建预约');
@@ -676,79 +923,69 @@ export class BookingsService {
       throw new BadRequestException('当前老师未开通该科目，无法预约');
     }
 
-    const [teacherUserRowsRaw, studentRowsRaw, guardianRowsRaw] =
-      await Promise.all([
-        prisma.$queryRawUnsafe(
-          'SELECT real_name_verified_at FROM users WHERE id = $1 LIMIT 1',
-          teacherProfile.userId,
-        ),
-        studentProfile.userId
-          ? prisma.$queryRawUnsafe(
-              `SELECT sp.onboarding_completed_at, u.real_name_verified_at
-               FROM student_profiles sp
-               LEFT JOIN users u ON u.id = sp.user_id
-               WHERE sp.id = $1
-               LIMIT 1`,
-              studentProfile.id,
-            )
-          : Promise.resolve([]),
-        guardianProfile
-          ? prisma.$queryRawUnsafe(
-              `SELECT gp.onboarding_completed_at, u.real_name_verified_at
-               FROM guardian_profiles gp
-               LEFT JOIN users u ON u.id = gp.user_id
-               WHERE gp.id = $1
-               LIMIT 1`,
-              guardianProfile.id,
-            )
-          : Promise.resolve([]),
-      ]);
+    const [studentRowsRaw, guardianRowsRaw] = await Promise.all([
+      studentProfile.userId
+        ? prisma.$queryRawUnsafe(
+            `SELECT sp.onboarding_completed_at
+             FROM student_profiles sp
+             WHERE sp.id = $1
+             LIMIT 1`,
+            studentProfile.id,
+          )
+        : Promise.resolve([]),
+      guardianProfile
+        ? prisma.$queryRawUnsafe(
+            `SELECT gp.onboarding_completed_at
+             FROM guardian_profiles gp
+             WHERE gp.id = $1
+             LIMIT 1`,
+            guardianProfile.id,
+          )
+        : Promise.resolve([]),
+    ]);
 
-    const teacherUserRows =
-      teacherUserRowsRaw as Array<{ real_name_verified_at: Date | null }>;
     const studentRows = studentRowsRaw as Array<{
       onboarding_completed_at: Date | null;
-      real_name_verified_at: Date | null;
     }>;
     const guardianRows = guardianRowsRaw as Array<{
       onboarding_completed_at: Date | null;
-      real_name_verified_at: Date | null;
     }>;
 
-    const teacherRealNameVerifiedAt =
-      teacherUserRows[0]?.real_name_verified_at ?? null;
     const studentOnboardingCompletedAt =
       studentRows[0]?.onboarding_completed_at ?? null;
-    const studentRealNameVerifiedAt =
-      studentRows[0]?.real_name_verified_at ?? null;
     const guardianOnboardingCompletedAt =
       guardianRows[0]?.onboarding_completed_at ?? null;
-    const guardianRealNameVerifiedAt =
-      guardianRows[0]?.real_name_verified_at ?? null;
 
     if (!teacherProfile.onboardingCompletedAt) {
       throw new BadRequestException('当前老师尚未完成入驻资料，不能创建预约');
     }
 
-    if (!teacherRealNameVerifiedAt) {
+    if (
+      !this.devMvpRelaxationEnabled &&
+      !teacherProfile.user?.realNameVerifiedAt
+    ) {
       throw new BadRequestException('当前老师尚未完成实名认证，不能创建预约');
     }
 
     if (
       !guardianProfile &&
       studentProfile.userId &&
-      (!studentOnboardingCompletedAt || !studentRealNameVerifiedAt)
+      !studentOnboardingCompletedAt
     ) {
-      throw new BadRequestException('当前学生尚未完成资料或实名认证，不能创建预约');
+      throw new BadRequestException('当前学生尚未完成资料，不能创建预约');
     }
 
     if (guardianProfile) {
       if (!guardianOnboardingCompletedAt) {
         throw new BadRequestException('当前家长尚未完成首登资料，不能创建预约');
       }
-
-      if (!guardianRealNameVerifiedAt) {
-        throw new BadRequestException('当前家长尚未完成实名认证，不能创建预约');
+      if (
+        !this.devMvpRelaxationEnabled &&
+        !guardianProfile.user?.realNameVerifiedAt
+      ) {
+        throw new BadRequestException(
+          '当前家长尚未完成实名认证，不能创建预约',
+        );
       }
 
       const studentGuardian = await prisma.studentGuardian.findFirst({
@@ -1032,7 +1269,10 @@ export class BookingsService {
       throw new ForbiddenException('当前账号无权消费该占位记录');
     }
 
-    if (hold.status !== BookingHoldStatus.ACTIVE || hold.expiresAt <= new Date()) {
+    if (
+      hold.status !== BookingHoldStatus.ACTIVE ||
+      hold.expiresAt <= new Date()
+    ) {
       throw new BadRequestException('当前占位已失效，请重新选择时段');
     }
 
@@ -1220,7 +1460,9 @@ export class BookingsService {
       ...(query.from || query.to
         ? {
             startAt: {
-              ...(query.from ? { gte: this.parseDate(query.from, 'from') } : {}),
+              ...(query.from
+                ? { gte: this.parseDate(query.from, 'from') }
+                : {}),
               ...(query.to ? { lte: this.parseDate(query.to, 'to') } : {}),
             },
           }
@@ -1261,8 +1503,23 @@ export class BookingsService {
     return this.toResponse(booking);
   }
 
-  async findOne(id: string): Promise<BookingResponseDto> {
+  async findOne(
+    currentUserOrId: AuthenticatedUserContext | string,
+    maybeId?: string,
+  ): Promise<BookingResponseDto> {
+    const currentUser =
+      typeof currentUserOrId === 'string' ? undefined : currentUserOrId;
+    const id =
+      typeof currentUserOrId === 'string' ? currentUserOrId : maybeId;
+
+    if (!id) {
+      throw new BadRequestException('id 不能为空');
+    }
+
     const booking = await this.findBookingOrThrow(id);
+    if (currentUser) {
+      await this.ensureBookingAccess(currentUser, booking);
+    }
     return this.toResponse(booking);
   }
 
@@ -1428,6 +1685,7 @@ export class BookingsService {
         teacherAcceptedAt: dto.acceptedAt
           ? this.parseDate(dto.acceptedAt, 'acceptedAt')
           : new Date(),
+        paymentDueAt: new Date(Date.now() + 30 * 60 * 1000),
         statusRemark: null,
         ...(dto.planSummary !== undefined
           ? { planSummary: dto.planSummary.trim() || null }
@@ -1515,6 +1773,10 @@ export class BookingsService {
         data: {
           paymentStatus: dto.paymentStatus,
           status: nextStatus,
+          settlementReadiness:
+            dto.paymentStatus === PaymentStatus.REFUNDED
+              ? SettlementReadiness.BLOCKED
+              : current.settlementReadiness,
           statusRemark:
             dto.paymentStatus === PaymentStatus.FAILED
               ? '支付失败，请重新尝试支付'
@@ -1589,6 +1851,7 @@ export class BookingsService {
         cancelledAt: dto.cancelledAt
           ? this.parseDate(dto.cancelledAt, 'cancelledAt')
           : new Date(),
+        settlementReadiness: SettlementReadiness.BLOCKED,
         statusRemark: dto.remark?.trim() || null,
       },
       include: this.getBookingInclude(),
@@ -1694,7 +1957,9 @@ export class BookingsService {
     dto: RespondRescheduleRequestDto,
   ): Promise<BookingResponseDto> {
     const booking = await this.findBookingOrThrow(id);
-    const request = booking.rescheduleRequests.find((item) => item.id === requestId);
+    const request = booking.rescheduleRequests.find(
+      (item) => item.id === requestId,
+    );
 
     if (!request) {
       throw new NotFoundException(`未找到改约请求：${requestId}`);
@@ -1735,7 +2000,9 @@ export class BookingsService {
         60000,
     );
     if (request.proposedStartAt.getTime() <= Date.now()) {
-      throw new BadRequestException('建议的新时段已早于当前时间，请重新发起改约');
+      throw new BadRequestException(
+        '建议的新时段已早于当前时间，请重新发起改约',
+      );
     }
     const isSellable = await this.teacherAvailabilityService.hasSellableWindow(
       booking.teacherProfileId,
@@ -1799,6 +2066,653 @@ export class BookingsService {
           statusRemark: dto.reason?.trim() || null,
         },
       });
+    });
+
+    return this.findOne(id);
+  }
+
+  async confirmArrival(
+    currentUser: AuthenticatedUserContext,
+    id: string,
+    dto: ArriveBookingDto,
+  ): Promise<BookingResponseDto> {
+    const booking = await this.findBookingOrThrow(id);
+
+    if (this.isAdminUser(currentUser)) {
+      // Admin can repair or assist any booking.
+    } else if (currentUser.activeRole === PlatformRole.TEACHER) {
+      await this.assertTeacherCanAccessBooking(currentUser, booking);
+    } else {
+      throw new ForbiddenException('当前角色不允许确认到达');
+    }
+
+    if (
+      !this.hasStatus(booking.status, [
+        BookingStatus.CONFIRMED,
+        BookingStatus.IN_PROGRESS,
+      ])
+    ) {
+      throw new BadRequestException('当前预约状态不允许确认到达');
+    }
+
+    const arrivedAt = dto.arrivedAt
+      ? this.parseDate(dto.arrivedAt, 'arrivedAt')
+      : new Date();
+
+    await this.prisma.lesson.upsert({
+      where: { bookingId: booking.id },
+      create: {
+        bookingId: booking.id,
+        teacherProfileId: booking.teacherProfileId,
+        studentProfileId: booking.studentProfileId,
+        arrivalConfirmedAt: arrivedAt,
+        arrivalLatitude: dto.arrivalLatitude ?? null,
+        arrivalLongitude: dto.arrivalLongitude ?? null,
+        arrivalAddress: dto.arrivalAddress?.trim() || null,
+        arrivalNote: dto.arrivalNote?.trim() || null,
+      },
+      update: {
+        arrivalConfirmedAt: arrivedAt,
+        arrivalLatitude: dto.arrivalLatitude ?? null,
+        arrivalLongitude: dto.arrivalLongitude ?? null,
+        arrivalAddress: dto.arrivalAddress?.trim() || null,
+        arrivalNote: dto.arrivalNote?.trim() || null,
+      },
+    });
+
+    if (this.isAdminUser(currentUser)) {
+      await this.createAdminAuditLog({
+        actorUserId: currentUser.userId,
+        action: 'BOOKING_ARRIVAL_CONFIRMED',
+        targetType: 'BOOKING',
+        targetId: booking.id,
+        payload: {
+          arrivedAt: arrivedAt.toISOString(),
+          arrivalAddress: dto.arrivalAddress?.trim() || null,
+        },
+      });
+    }
+
+    return this.findOne(id);
+  }
+
+  async confirmCompletion(
+    currentUser: AuthenticatedUserContext,
+    id: string,
+    dto: CompleteBookingDto,
+  ): Promise<BookingResponseDto> {
+    const booking = await this.findBookingOrThrow(id);
+
+    if (this.isAdminUser(currentUser)) {
+      // Admin can manually confirm completion.
+    } else if (currentUser.activeRole === PlatformRole.GUARDIAN) {
+      await this.assertGuardianCanAccessBooking(currentUser, booking);
+    } else {
+      throw new ForbiddenException('当前角色不允许确认完课');
+    }
+
+    if (booking.status !== BookingStatus.COMPLETED) {
+      throw new BadRequestException('只有已完课订单才可以确认完课');
+    }
+
+    if (!booking.lesson?.feedbackSubmittedAt) {
+      throw new BadRequestException('老师尚未提交课后记录，暂不能确认完课');
+    }
+
+    const confirmedAt = dto.confirmedAt
+      ? this.parseDate(dto.confirmedAt, 'confirmedAt')
+      : new Date();
+
+    const updated = await this.prisma.booking.update({
+      where: { id: booking.id },
+      data: {
+        completionStatus: BookingCompletionStatus.GUARDIAN_CONFIRMED,
+        completionConfirmedAt: confirmedAt,
+        exceptionStatus:
+          booking.exceptionStatus === BookingExceptionStatus.BLOCKING
+            ? BookingExceptionStatus.BLOCKING
+            : BookingExceptionStatus.NONE,
+        settlementReadiness:
+          booking.exceptionStatus === BookingExceptionStatus.BLOCKING
+            ? SettlementReadiness.BLOCKED
+            : SettlementReadiness.READY,
+        statusRemark:
+          dto.remark !== undefined
+            ? dto.remark.trim() || null
+            : booking.statusRemark,
+      },
+      include: this.getBookingInclude(),
+    });
+
+    if (this.isAdminUser(currentUser)) {
+      await this.createAdminAuditLog({
+        actorUserId: currentUser.userId,
+        action: 'BOOKING_COMPLETION_CONFIRMED',
+        targetType: 'BOOKING',
+        targetId: booking.id,
+        payload: {
+          confirmedAt: confirmedAt.toISOString(),
+          remark: dto.remark?.trim() || null,
+        },
+      });
+    }
+
+    return this.toResponse(updated);
+  }
+
+  async createDispute(
+    currentUser: AuthenticatedUserContext,
+    id: string,
+    dto: CreateBookingDisputeDto,
+  ): Promise<BookingResponseDto> {
+    const booking = await this.findBookingOrThrow(id);
+
+    if (this.isAdminUser(currentUser)) {
+      // Admin can create disputes on behalf of users.
+    } else if (currentUser.activeRole === PlatformRole.GUARDIAN) {
+      await this.assertGuardianCanAccessBooking(currentUser, booking);
+    } else {
+      throw new ForbiddenException('当前角色不允许发起争议');
+    }
+
+    if (
+      !this.hasStatus(booking.status, [
+        BookingStatus.CONFIRMED,
+        BookingStatus.IN_PROGRESS,
+        BookingStatus.COMPLETED,
+      ])
+    ) {
+      throw new BadRequestException('当前预约状态不允许发起争议');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      const existingCase = await tx.bookingExceptionCase.findUnique({
+        where: {
+          bookingId_exceptionType: {
+            bookingId: booking.id,
+            exceptionType: dto.exceptionType,
+          },
+        },
+        select: {
+          id: true,
+          status: true,
+          resolution: true,
+          resolvedByUserId: true,
+          metadata: true,
+        },
+      });
+      const metadata = this.buildDisputeMetadata({
+        currentUser,
+        dto,
+        existingCase,
+      });
+
+      if (existingCase) {
+        await tx.bookingExceptionCase.update({
+          where: { id: existingCase.id },
+          data: {
+            status: BookingExceptionCaseStatus.OPEN,
+            responsibilityType: ResponsibilityType.UNKNOWN,
+            summary: dto.summary.trim(),
+            resolution: null,
+            metadata,
+            resolvedByUserId: null,
+          },
+        });
+      } else {
+        await tx.bookingExceptionCase.create({
+          data: {
+            bookingId: booking.id,
+            exceptionType: dto.exceptionType,
+            status: BookingExceptionCaseStatus.OPEN,
+            responsibilityType: ResponsibilityType.UNKNOWN,
+            summary: dto.summary.trim(),
+            metadata,
+            createdByUserId: currentUser.userId,
+          },
+        });
+      }
+
+      await tx.booking.update({
+        where: { id: booking.id },
+        data: {
+          completionStatus: BookingCompletionStatus.DISPUTED,
+          exceptionStatus: BookingExceptionStatus.BLOCKING,
+          settlementReadiness: SettlementReadiness.BLOCKED,
+        },
+      });
+    });
+
+    return this.findOne(id);
+  }
+
+  async resolveDispute(
+    currentUser: AuthenticatedUserContext,
+    id: string,
+    caseId: string,
+    dto: ResolveBookingDisputeDto,
+  ): Promise<BookingResponseDto> {
+    if (!this.isAdminUser(currentUser)) {
+      throw new ForbiddenException('只有后台管理员可以处理争议工单');
+    }
+
+    const booking = await this.findBookingOrThrow(id);
+    const exceptionCase = booking.exceptionCases.find(
+      (item) => item.id === caseId,
+    );
+
+    if (!exceptionCase) {
+      throw new NotFoundException(`未找到异常工单：${caseId}`);
+    }
+
+    const targetCompletionStatus =
+      dto.completionStatus ?? booking.completionStatus;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.bookingExceptionCase.update({
+        where: { id: caseId },
+        data: {
+          status: BookingExceptionCaseStatus.RESOLVED,
+          responsibilityType: dto.responsibilityType,
+          resolution: dto.resolution.trim(),
+          resolvedByUserId: currentUser.userId,
+        },
+      });
+
+      const remainingOpenCount = await this.countOpenExceptionCases(
+        tx,
+        booking.id,
+      );
+
+      await tx.booking.update({
+        where: { id: booking.id },
+        data: {
+          completionStatus: targetCompletionStatus,
+          exceptionStatus:
+            remainingOpenCount > 0
+              ? BookingExceptionStatus.BLOCKING
+              : BookingExceptionStatus.NONE,
+          settlementReadiness:
+            remainingOpenCount > 0
+              ? SettlementReadiness.BLOCKED
+              : this.getSettlementReadinessAfterExceptionResolve(
+                  booking.status,
+                  targetCompletionStatus,
+                  dto.settlementReadiness,
+                ),
+        },
+      });
+    });
+
+    await this.createAdminAuditLog({
+      actorUserId: currentUser.userId,
+      action: 'BOOKING_DISPUTE_RESOLVED',
+      targetType: 'BOOKING_EXCEPTION_CASE',
+      targetId: caseId,
+      payload: {
+        bookingId: booking.id,
+        responsibilityType: dto.responsibilityType,
+        resolution: dto.resolution.trim(),
+        completionStatus: targetCompletionStatus,
+        settlementReadiness: dto.settlementReadiness ?? null,
+      },
+    });
+
+    return this.findOne(id);
+  }
+
+  async manualRepair(
+    currentUser: AuthenticatedUserContext,
+    id: string,
+    dto: ManualRepairBookingDto,
+  ): Promise<BookingResponseDto> {
+    if (!this.isAdminUser(currentUser)) {
+      throw new ForbiddenException('只有后台管理员可以执行人工修复');
+    }
+
+    const booking = await this.findBookingOrThrow(id);
+
+    await this.prisma.$transaction(async (tx) => {
+      switch (dto.action) {
+        case ManualRepairAction.PAYMENT_STATUS: {
+          if (!dto.paymentStatus) {
+            throw new BadRequestException(
+              '人工补支付状态时必须提供 paymentStatus',
+            );
+          }
+
+          let nextStatus = dto.bookingStatus ?? booking.status;
+          if (
+            dto.paymentStatus === PaymentStatus.PAID &&
+            booking.status === BookingStatus.PENDING_PAYMENT
+          ) {
+            nextStatus = BookingStatus.CONFIRMED;
+          }
+          if (dto.paymentStatus === PaymentStatus.REFUNDED) {
+            nextStatus = BookingStatus.REFUNDED;
+          }
+
+          await tx.booking.update({
+            where: { id: booking.id },
+            data: {
+              paymentStatus: dto.paymentStatus,
+              status: nextStatus,
+              settlementReadiness:
+                dto.paymentStatus === PaymentStatus.REFUNDED
+                  ? SettlementReadiness.BLOCKED
+                  : booking.settlementReadiness,
+              statusRemark: dto.note.trim(),
+            },
+          });
+
+          if (
+            dto.paymentStatus === PaymentStatus.PAID &&
+            nextStatus === BookingStatus.CONFIRMED
+          ) {
+            await tx.lesson.upsert({
+              where: { bookingId: booking.id },
+              update: {},
+              create: {
+                bookingId: booking.id,
+                teacherProfileId: booking.teacherProfileId,
+                studentProfileId: booking.studentProfileId,
+              },
+            });
+          }
+          break;
+        }
+        case ManualRepairAction.CHECK_IN: {
+          const checkInAt = dto.checkInAt
+            ? this.parseDate(dto.checkInAt, 'checkInAt')
+            : new Date();
+
+          await tx.lesson.upsert({
+            where: { bookingId: booking.id },
+            create: {
+              bookingId: booking.id,
+              teacherProfileId: booking.teacherProfileId,
+              studentProfileId: booking.studentProfileId,
+              attendanceStatus: LessonAttendanceStatus.ONGOING,
+              checkInAt,
+              startedAt: checkInAt,
+              checkInLatitude: dto.latitude ?? null,
+              checkInLongitude: dto.longitude ?? null,
+              checkInAddress: dto.address?.trim() || null,
+            },
+            update: {
+              attendanceStatus: LessonAttendanceStatus.ONGOING,
+              checkInAt,
+              startedAt: checkInAt,
+              checkInLatitude: dto.latitude ?? null,
+              checkInLongitude: dto.longitude ?? null,
+              checkInAddress: dto.address?.trim() || null,
+            },
+          });
+
+          await tx.booking.update({
+            where: { id: booking.id },
+            data: {
+              status: BookingStatus.IN_PROGRESS,
+              ...(dto.exceptionType
+                ? {
+                    exceptionStatus: BookingExceptionStatus.NONE,
+                    settlementReadiness: SettlementReadiness.NOT_READY,
+                  }
+                : {}),
+              statusRemark: dto.note.trim(),
+            },
+          });
+
+          if (dto.exceptionType) {
+            const updated = await tx.bookingExceptionCase.updateMany({
+              where: {
+                bookingId: booking.id,
+                exceptionType: dto.exceptionType,
+              },
+              data: {
+                status: BookingExceptionCaseStatus.RESOLVED,
+                resolution: dto.note.trim(),
+                resolvedByUserId: currentUser.userId,
+              },
+            });
+
+            if (updated.count === 0) {
+              throw new NotFoundException('未找到对应异常工单');
+            }
+
+            const remainingOpenCount = await this.countOpenExceptionCases(
+              tx,
+              booking.id,
+            );
+
+            await tx.booking.update({
+              where: { id: booking.id },
+              data: {
+                exceptionStatus:
+                  remainingOpenCount > 0
+                    ? BookingExceptionStatus.BLOCKING
+                    : BookingExceptionStatus.NONE,
+                settlementReadiness:
+                  remainingOpenCount > 0
+                    ? SettlementReadiness.BLOCKED
+                    : SettlementReadiness.NOT_READY,
+              },
+            });
+          }
+          break;
+        }
+        case ManualRepairAction.CHECK_OUT: {
+          const lesson = await tx.lesson.findUnique({
+            where: { bookingId: booking.id },
+            select: {
+              id: true,
+              startedAt: true,
+              checkInAt: true,
+            },
+          });
+
+          if (!lesson) {
+            throw new BadRequestException('当前预约没有可补录签退的课程记录');
+          }
+
+          const checkOutAt = dto.checkOutAt
+            ? this.parseDate(dto.checkOutAt, 'checkOutAt')
+            : new Date();
+          const startedAt =
+            lesson.startedAt ?? lesson.checkInAt ?? booking.startAt;
+
+          await tx.lesson.update({
+            where: { id: lesson.id },
+            data: {
+              attendanceStatus: LessonAttendanceStatus.COMPLETED,
+              checkOutAt,
+              endedAt: checkOutAt,
+              checkOutLatitude: dto.latitude ?? null,
+              checkOutLongitude: dto.longitude ?? null,
+              checkOutAddress: dto.address?.trim() || null,
+              startedAt,
+            },
+          });
+
+          await tx.booking.update({
+            where: { id: booking.id },
+            data: {
+              status: BookingStatus.COMPLETED,
+              completionStatus: BookingCompletionStatus.PENDING_TEACHER_RECORD,
+              ...(dto.exceptionType
+                ? {
+                    exceptionStatus: BookingExceptionStatus.NONE,
+                    settlementReadiness: SettlementReadiness.NOT_READY,
+                  }
+                : {
+                    settlementReadiness: SettlementReadiness.NOT_READY,
+                  }),
+              statusRemark: dto.note.trim(),
+            },
+          });
+
+          if (dto.exceptionType) {
+            const updated = await tx.bookingExceptionCase.updateMany({
+              where: {
+                bookingId: booking.id,
+                exceptionType: dto.exceptionType,
+              },
+              data: {
+                status: BookingExceptionCaseStatus.RESOLVED,
+                resolution: dto.note.trim(),
+                resolvedByUserId: currentUser.userId,
+              },
+            });
+
+            if (updated.count === 0) {
+              throw new NotFoundException('未找到对应异常工单');
+            }
+
+            const remainingOpenCount = await this.countOpenExceptionCases(
+              tx,
+              booking.id,
+            );
+
+            await tx.booking.update({
+              where: { id: booking.id },
+              data: {
+                exceptionStatus:
+                  remainingOpenCount > 0
+                    ? BookingExceptionStatus.BLOCKING
+                    : BookingExceptionStatus.NONE,
+                settlementReadiness:
+                  remainingOpenCount > 0
+                    ? SettlementReadiness.BLOCKED
+                    : SettlementReadiness.NOT_READY,
+              },
+            });
+          }
+          break;
+        }
+        case ManualRepairAction.RESPONSIBILITY: {
+          if (!dto.exceptionType || !dto.responsibilityType) {
+            throw new BadRequestException(
+              '人工改责任方时必须提供 exceptionType 和 responsibilityType',
+            );
+          }
+
+          const updated = await tx.bookingExceptionCase.updateMany({
+            where: {
+              bookingId: booking.id,
+              exceptionType: dto.exceptionType,
+            },
+            data: {
+              responsibilityType: dto.responsibilityType,
+              resolution: dto.note.trim(),
+            },
+          });
+
+          if (updated.count === 0) {
+            throw new NotFoundException('未找到对应异常工单');
+          }
+          break;
+        }
+        case ManualRepairAction.CLOSE_EXCEPTION: {
+          if (!dto.exceptionType) {
+            throw new BadRequestException(
+              '关闭异常工单时必须提供 exceptionType',
+            );
+          }
+
+          const updated = await tx.bookingExceptionCase.updateMany({
+            where: {
+              bookingId: booking.id,
+              exceptionType: dto.exceptionType,
+            },
+            data: {
+              status: BookingExceptionCaseStatus.CLOSED,
+              resolution: dto.note.trim(),
+              resolvedByUserId: currentUser.userId,
+            },
+          });
+
+          if (updated.count === 0) {
+            throw new NotFoundException('未找到对应异常工单');
+          }
+
+          const remainingOpenCount = await this.countOpenExceptionCases(
+            tx,
+            booking.id,
+          );
+
+          await tx.booking.update({
+            where: { id: booking.id },
+            data: {
+              exceptionStatus:
+                remainingOpenCount > 0
+                  ? BookingExceptionStatus.BLOCKING
+                  : BookingExceptionStatus.NONE,
+              settlementReadiness:
+                remainingOpenCount > 0
+                  ? SettlementReadiness.BLOCKED
+                  : booking.completionStatus ===
+                        BookingCompletionStatus.GUARDIAN_CONFIRMED ||
+                      booking.completionStatus ===
+                        BookingCompletionStatus.AUTO_CONFIRMED
+                    ? SettlementReadiness.READY
+                    : this.getSettlementReadinessAfterExceptionResolve(
+                        booking.status,
+                        booking.completionStatus,
+                      ),
+            },
+          });
+          break;
+        }
+        case ManualRepairAction.COMPLETION_STATUS: {
+          if (!dto.completionStatus) {
+            throw new BadRequestException(
+              '人工修改完课状态时必须提供 completionStatus',
+            );
+          }
+
+          await tx.booking.update({
+            where: { id: booking.id },
+            data: {
+              completionStatus: dto.completionStatus,
+              completionConfirmedAt:
+                dto.completionStatus ===
+                  BookingCompletionStatus.GUARDIAN_CONFIRMED ||
+                dto.completionStatus === BookingCompletionStatus.AUTO_CONFIRMED
+                  ? new Date()
+                  : booking.completionConfirmedAt,
+              settlementReadiness:
+                dto.settlementReadiness ??
+                (booking.exceptionStatus === BookingExceptionStatus.BLOCKING
+                  ? SettlementReadiness.BLOCKED
+                  : this.getSettlementReadinessAfterExceptionResolve(
+                      booking.status,
+                      dto.completionStatus,
+                    )),
+              statusRemark: dto.note.trim(),
+            },
+          });
+          break;
+        }
+        default:
+          throw new ConflictException(`暂不支持的人工修复动作：${dto.action}`);
+      }
+    });
+
+    await this.createAdminAuditLog({
+      actorUserId: currentUser.userId,
+      action: 'BOOKING_MANUAL_REPAIR',
+      targetType: 'BOOKING',
+      targetId: booking.id,
+      payload: {
+        action: dto.action,
+        note: dto.note.trim(),
+        paymentStatus: dto.paymentStatus ?? null,
+        bookingStatus: dto.bookingStatus ?? null,
+        exceptionType: dto.exceptionType ?? null,
+        responsibilityType: dto.responsibilityType ?? null,
+        completionStatus: dto.completionStatus ?? null,
+        settlementReadiness: dto.settlementReadiness ?? null,
+      },
     });
 
     return this.findOne(id);

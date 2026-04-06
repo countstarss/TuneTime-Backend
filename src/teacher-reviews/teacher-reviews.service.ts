@@ -1,10 +1,17 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { BookingStatus, Prisma, TeacherReview } from '@prisma/client';
+import {
+  BookingStatus,
+  PlatformRole,
+  Prisma,
+  TeacherReview,
+} from '@prisma/client';
+import { AuthenticatedUserContext } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTeacherReviewDto } from './dto/create-teacher-review.dto';
 import { ListTeacherReviewsQueryDto } from './dto/list-teacher-reviews-query.dto';
@@ -173,6 +180,31 @@ export class TeacherReviewsService {
     return review;
   }
 
+  private isAdminUser(currentUser: AuthenticatedUserContext): boolean {
+    return (
+      currentUser.activeRole === PlatformRole.ADMIN ||
+      currentUser.activeRole === PlatformRole.SUPER_ADMIN
+    );
+  }
+
+  private ensureGuardianAccess(
+    currentUser: AuthenticatedUserContext,
+    review: TeacherReviewWithRelations,
+  ) {
+    if (this.isAdminUser(currentUser)) {
+      return;
+    }
+
+    if (
+      currentUser.activeRole === PlatformRole.GUARDIAN &&
+      review.guardianProfile?.userId === currentUser.userId
+    ) {
+      return;
+    }
+
+    throw new ForbiddenException('当前账号无权访问该评价');
+  }
+
   private async syncTeacherReviewStats(
     teacherProfileId: string,
     tx: Pick<PrismaService, 'teacherReview' | 'teacherProfile'>,
@@ -200,7 +232,20 @@ export class TeacherReviewsService {
     return aggregate;
   }
 
-  async create(dto: CreateTeacherReviewDto): Promise<TeacherReviewResponseDto> {
+  async create(
+    currentUserOrDto: AuthenticatedUserContext | CreateTeacherReviewDto,
+    maybeDto?: CreateTeacherReviewDto,
+  ): Promise<TeacherReviewResponseDto> {
+    const currentUser =
+      'userId' in currentUserOrDto ? currentUserOrDto : undefined;
+    const dto = ('userId' in currentUserOrDto ? maybeDto : currentUserOrDto) as
+      | CreateTeacherReviewDto
+      | undefined;
+
+    if (!dto) {
+      throw new BadRequestException('评价参数不能为空');
+    }
+
     const booking = await this.prisma.booking.findUnique({
       where: { id: dto.bookingId },
       select: {
@@ -209,6 +254,11 @@ export class TeacherReviewsService {
         studentProfileId: true,
         guardianProfileId: true,
         status: true,
+        guardianProfile: {
+          select: {
+            userId: true,
+          },
+        },
       },
     });
 
@@ -223,6 +273,14 @@ export class TeacherReviewsService {
       ])
     ) {
       throw new BadRequestException('只有已完成或已退款的预约才可以评价');
+    }
+
+    if (
+      currentUser &&
+      !this.isAdminUser(currentUser) &&
+      booking.guardianProfile?.userId !== currentUser.userId
+    ) {
+      throw new ForbiddenException('当前家长无权评价该预约');
     }
 
     try {
@@ -261,8 +319,19 @@ export class TeacherReviewsService {
   }
 
   async findAll(
-    query: ListTeacherReviewsQueryDto,
+    currentUserOrQuery: AuthenticatedUserContext | ListTeacherReviewsQueryDto,
+    maybeQuery?: ListTeacherReviewsQueryDto,
   ): Promise<TeacherReviewListResponseDto> {
+    const currentUser =
+      'userId' in currentUserOrQuery ? currentUserOrQuery : undefined;
+    const query = (
+      'userId' in currentUserOrQuery ? maybeQuery : currentUserOrQuery
+    ) as ListTeacherReviewsQueryDto | undefined;
+
+    if (!query) {
+      throw new BadRequestException('查询参数不能为空');
+    }
+
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 20;
     const skip = (page - 1) * pageSize;
@@ -302,6 +371,13 @@ export class TeacherReviewsService {
             ],
           }
         : {}),
+      ...(currentUser && !this.isAdminUser(currentUser)
+        ? {
+            guardianProfile: {
+              userId: currentUser.userId,
+            },
+          }
+        : {}),
     };
 
     const [items, total] = await Promise.all([
@@ -324,13 +400,46 @@ export class TeacherReviewsService {
     };
   }
 
-  async findByBookingId(bookingId: string): Promise<TeacherReviewResponseDto> {
+  async findByBookingId(
+    currentUserOrBookingId: AuthenticatedUserContext | string,
+    maybeBookingId?: string,
+  ): Promise<TeacherReviewResponseDto> {
+    const currentUser =
+      typeof currentUserOrBookingId === 'string'
+        ? undefined
+        : currentUserOrBookingId;
+    const bookingId =
+      typeof currentUserOrBookingId === 'string'
+        ? currentUserOrBookingId
+        : maybeBookingId;
+
+    if (!bookingId) {
+      throw new BadRequestException('bookingId 不能为空');
+    }
+
     const review = await this.findReviewByBookingIdOrThrow(bookingId);
+    if (currentUser) {
+      this.ensureGuardianAccess(currentUser, review);
+    }
     return this.toResponse(review);
   }
 
-  async findOne(id: string): Promise<TeacherReviewResponseDto> {
+  async findOne(
+    currentUserOrId: AuthenticatedUserContext | string,
+    maybeId?: string,
+  ): Promise<TeacherReviewResponseDto> {
+    const currentUser =
+      typeof currentUserOrId === 'string' ? undefined : currentUserOrId;
+    const id = typeof currentUserOrId === 'string' ? currentUserOrId : maybeId;
+
+    if (!id) {
+      throw new BadRequestException('id 不能为空');
+    }
+
     const review = await this.findReviewOrThrow(id);
+    if (currentUser) {
+      this.ensureGuardianAccess(currentUser, review);
+    }
     return this.toResponse(review);
   }
 
@@ -374,10 +483,29 @@ export class TeacherReviewsService {
   }
 
   async update(
-    id: string,
-    dto: UpdateTeacherReviewDto,
+    currentUserOrId: AuthenticatedUserContext | string,
+    idOrDto: string | UpdateTeacherReviewDto,
+    maybeDto?: UpdateTeacherReviewDto,
   ): Promise<TeacherReviewResponseDto> {
+    const currentUser =
+      typeof currentUserOrId === 'string' ? undefined : currentUserOrId;
+    const id =
+      typeof currentUserOrId === 'string'
+        ? currentUserOrId
+        : (idOrDto as string);
+    const dto =
+      typeof currentUserOrId === 'string'
+        ? (idOrDto as UpdateTeacherReviewDto)
+        : maybeDto;
+
+    if (!dto) {
+      throw new BadRequestException('更新参数不能为空');
+    }
+
     const current = await this.findReviewOrThrow(id);
+    if (currentUser) {
+      this.ensureGuardianAccess(currentUser, current);
+    }
 
     if (dto.bookingId && dto.bookingId !== current.bookingId) {
       throw new BadRequestException('当前版本不支持直接变更评价关联的预约');
@@ -419,8 +547,22 @@ export class TeacherReviewsService {
     return this.toResponse(review);
   }
 
-  async remove(id: string): Promise<DeleteTeacherReviewResponseDto> {
+  async remove(
+    currentUserOrId: AuthenticatedUserContext | string,
+    maybeId?: string,
+  ): Promise<DeleteTeacherReviewResponseDto> {
+    const currentUser =
+      typeof currentUserOrId === 'string' ? undefined : currentUserOrId;
+    const id = typeof currentUserOrId === 'string' ? currentUserOrId : maybeId;
+
+    if (!id) {
+      throw new BadRequestException('id 不能为空');
+    }
+
     const current = await this.findReviewOrThrow(id);
+    if (currentUser) {
+      this.ensureGuardianAccess(currentUser, current);
+    }
 
     await this.prisma.$transaction(async (tx) => {
       await tx.teacherReview.delete({ where: { id } });

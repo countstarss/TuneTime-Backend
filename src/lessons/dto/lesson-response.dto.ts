@@ -61,6 +61,40 @@ export class LessonStudentSummaryDto {
   gradeLevel!: string | null;
 }
 
+export class LessonEvidenceDto {
+  @ApiProperty({ description: '证据 ID。', example: 'evi_001' })
+  id!: string;
+
+  @ApiProperty({ description: '证据类型。', example: 'RESULT_PHOTO' })
+  type!: string;
+
+  @ApiProperty({
+    description: '证据链接。',
+    example: 'https://example.com/result-photo.jpg',
+  })
+  url!: string;
+
+  @ApiProperty({
+    description: '证据备注。',
+    example: '课堂作品照片',
+    nullable: true,
+    required: false,
+  })
+  note!: string | null;
+
+  @ApiProperty({
+    description: '上传人用户 ID。',
+    example: 'user_001',
+  })
+  uploadedByUserId!: string;
+
+  @ApiProperty({
+    description: '上传时间。',
+    example: '2026-04-04T10:00:00.000Z',
+  })
+  uploadedAt!: Date;
+}
+
 export class LessonResponseDto {
   @ApiProperty({ description: '课程 ID。', example: 'cmc123lesson001' })
   id!: string;
@@ -76,6 +110,46 @@ export class LessonResponseDto {
 
   @ApiProperty({ description: '出勤状态。', example: 'SCHEDULED' })
   attendanceStatus!: string;
+
+  @ApiProperty({
+    description: '到达确认时间。',
+    example: '2026-03-20T08:50:00.000Z',
+    nullable: true,
+    required: false,
+  })
+  arrivalConfirmedAt!: Date | null;
+
+  @ApiProperty({
+    description: '到达纬度。',
+    example: 39.1267,
+    nullable: true,
+    required: false,
+  })
+  arrivalLatitude!: number | null;
+
+  @ApiProperty({
+    description: '到达经度。',
+    example: 117.2059,
+    nullable: true,
+    required: false,
+  })
+  arrivalLongitude!: number | null;
+
+  @ApiProperty({
+    description: '到达地址。',
+    example: '天津市南开区黄河道 100 号',
+    nullable: true,
+    required: false,
+  })
+  arrivalAddress!: string | null;
+
+  @ApiProperty({
+    description: '到达备注。',
+    example: '已到达小区门口，等待家长开门。',
+    nullable: true,
+    required: false,
+  })
+  arrivalNote!: string | null;
 
   @ApiProperty({
     description: '签到时间。',
@@ -205,6 +279,13 @@ export class LessonResponseDto {
 
   @ApiProperty({ description: '学生摘要。', type: LessonStudentSummaryDto })
   student!: LessonStudentSummaryDto;
+
+  @ApiProperty({
+    description: '课程证据。',
+    type: LessonEvidenceDto,
+    isArray: true,
+  })
+  evidences!: LessonEvidenceDto[];
 
   @ApiProperty({
     description: '创建时间。',

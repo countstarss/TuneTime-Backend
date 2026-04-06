@@ -27,6 +27,7 @@ import { RequireRoles } from '../auth/require-roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { JwtAuthGuard } from '../auth/supabase-auth.guard';
 import { AcceptBookingDto } from './dto/accept-booking.dto';
+import { ArriveBookingDto } from './dto/arrive-booking.dto';
 import { BookingHoldResponseDto } from './dto/booking-hold-response.dto';
 import {
   BookingListResponseDto,
@@ -34,15 +35,19 @@ import {
   DeleteBookingResponseDto,
 } from './dto/booking-response.dto';
 import { CancelBookingDto } from './dto/cancel-booking.dto';
+import { CompleteBookingDto } from './dto/complete-booking.dto';
 import { ConfirmBookingDto } from './dto/confirm-booking.dto';
+import { CreateBookingDisputeDto } from './dto/create-booking-dispute.dto';
 import { CreateBookingFromHoldDto } from './dto/create-booking-from-hold.dto';
 import { CreateBookingHoldDto } from './dto/create-booking-hold.dto';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { CreateRescheduleRequestDto } from './dto/create-reschedule-request.dto';
 import { ListBookingsQueryDto } from './dto/list-bookings-query.dto';
 import { ListMyBookingsQueryDto } from './dto/list-my-bookings-query.dto';
+import { ManualRepairBookingDto } from './dto/manual-repair-booking.dto';
 import { RespondBookingDto } from './dto/respond-booking.dto';
 import { RespondRescheduleRequestDto } from './dto/respond-reschedule-request.dto';
+import { ResolveBookingDisputeDto } from './dto/resolve-booking-dispute.dto';
 import { UpdateBookingPaymentDto } from './dto/update-booking-payment.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
 import { BookingsService } from './bookings.service';
@@ -110,6 +115,9 @@ export class BookingsController {
   }
 
   @Get()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireRoles(PlatformRole.ADMIN, PlatformRole.SUPER_ADMIN)
+  @ApiBearerAuth('bearer')
   @ApiOperation({
     summary: '分页查询预约列表',
     description: '支持按老师、学生、家长、状态、支付状态、时间范围等条件筛选。',
@@ -159,6 +167,9 @@ export class BookingsController {
   }
 
   @Get('booking-no/:bookingNo')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireRoles(PlatformRole.ADMIN, PlatformRole.SUPER_ADMIN)
+  @ApiBearerAuth('bearer')
   @ApiOperation({
     summary: '按预约单号查询详情',
     description: '客服、财务或运营按预约单号排查时常用。',
@@ -176,6 +187,14 @@ export class BookingsController {
   }
 
   @Get(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireRoles(
+    PlatformRole.TEACHER,
+    PlatformRole.GUARDIAN,
+    PlatformRole.ADMIN,
+    PlatformRole.SUPER_ADMIN,
+  )
+  @ApiBearerAuth('bearer')
   @ApiOperation({
     summary: '查询预约详情',
     description: '根据预约 ID 查询完整预约信息。',
@@ -186,11 +205,17 @@ export class BookingsController {
     type: BookingResponseDto,
   })
   @ApiNotFoundResponse({ description: '未找到对应预约。' })
-  findOne(@Param('id') id: string): Promise<BookingResponseDto> {
-    return this.bookingsService.findOne(id);
+  findOne(
+    @CurrentUser() currentUser: AuthenticatedUserContext,
+    @Param('id') id: string,
+  ): Promise<BookingResponseDto> {
+    return this.bookingsService.findOne(currentUser, id);
   }
 
   @Patch(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireRoles(PlatformRole.ADMIN, PlatformRole.SUPER_ADMIN)
+  @ApiBearerAuth('bearer')
   @ApiOperation({
     summary: '更新预约',
     description: '更新预约基础信息，服务端会自动重新校验并重新计算价格。',
@@ -361,7 +386,115 @@ export class BookingsController {
     );
   }
 
+  @Post(':id/arrival')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireRoles(
+    PlatformRole.TEACHER,
+    PlatformRole.ADMIN,
+    PlatformRole.SUPER_ADMIN,
+  )
+  @ApiBearerAuth('bearer')
+  @ApiOperation({
+    summary: '老师确认到达',
+    description:
+      '老师到达服务地址附近后确认到达，先记录时间与备注，不强制做定位校验。',
+  })
+  @ApiBody({ type: ArriveBookingDto })
+  @ApiOkResponse({ type: BookingResponseDto })
+  confirmArrival(
+    @CurrentUser() currentUser: AuthenticatedUserContext,
+    @Param('id') id: string,
+    @Body() dto: ArriveBookingDto,
+  ): Promise<BookingResponseDto> {
+    return this.bookingsService.confirmArrival(currentUser, id, dto);
+  }
+
+  @Post(':id/complete-confirm')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireRoles(
+    PlatformRole.GUARDIAN,
+    PlatformRole.ADMIN,
+    PlatformRole.SUPER_ADMIN,
+  )
+  @ApiBearerAuth('bearer')
+  @ApiOperation({
+    summary: '家长确认完课',
+    description: '老师签退并提交课后记录后，家长可以确认本节课已正常完成。',
+  })
+  @ApiBody({ type: CompleteBookingDto })
+  @ApiOkResponse({ type: BookingResponseDto })
+  confirmCompletion(
+    @CurrentUser() currentUser: AuthenticatedUserContext,
+    @Param('id') id: string,
+    @Body() dto: CompleteBookingDto,
+  ): Promise<BookingResponseDto> {
+    return this.bookingsService.confirmCompletion(currentUser, id, dto);
+  }
+
+  @Post(':id/disputes')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireRoles(
+    PlatformRole.GUARDIAN,
+    PlatformRole.ADMIN,
+    PlatformRole.SUPER_ADMIN,
+  )
+  @ApiBearerAuth('bearer')
+  @ApiOperation({
+    summary: '发起订单争议',
+    description: '用于处理未上课、到场争议、时长不足、效果问题等异常情况。',
+  })
+  @ApiBody({ type: CreateBookingDisputeDto })
+  @ApiOkResponse({ type: BookingResponseDto })
+  createDispute(
+    @CurrentUser() currentUser: AuthenticatedUserContext,
+    @Param('id') id: string,
+    @Body() dto: CreateBookingDisputeDto,
+  ): Promise<BookingResponseDto> {
+    return this.bookingsService.createDispute(currentUser, id, dto);
+  }
+
+  @Post(':id/disputes/:caseId/resolve')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireRoles(PlatformRole.ADMIN, PlatformRole.SUPER_ADMIN)
+  @ApiBearerAuth('bearer')
+  @ApiOperation({
+    summary: '处理订单争议',
+    description: '后台管理员确认责任方、写入处理结论，并决定是否恢复结算资格。',
+  })
+  @ApiBody({ type: ResolveBookingDisputeDto })
+  @ApiOkResponse({ type: BookingResponseDto })
+  resolveDispute(
+    @CurrentUser() currentUser: AuthenticatedUserContext,
+    @Param('id') id: string,
+    @Param('caseId') caseId: string,
+    @Body() dto: ResolveBookingDisputeDto,
+  ): Promise<BookingResponseDto> {
+    return this.bookingsService.resolveDispute(currentUser, id, caseId, dto);
+  }
+
+  @Post(':id/ops/manual-repair')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireRoles(PlatformRole.ADMIN, PlatformRole.SUPER_ADMIN)
+  @ApiBearerAuth('bearer')
+  @ApiOperation({
+    summary: '后台人工修复订单',
+    description:
+      '用于人工补支付、补签到签退、改责任方、关闭异常工单、修正完课状态等操作。',
+  })
+  @ApiBody({ type: ManualRepairBookingDto })
+  @ApiOkResponse({ type: BookingResponseDto })
+  manualRepair(
+    @CurrentUser() currentUser: AuthenticatedUserContext,
+    @Param('id') id: string,
+    @Body() dto: ManualRepairBookingDto,
+  ): Promise<BookingResponseDto> {
+    return this.bookingsService.manualRepair(currentUser, id, dto);
+  }
+
   @Delete(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireRoles(PlatformRole.ADMIN, PlatformRole.SUPER_ADMIN)
+  @ApiBearerAuth('bearer')
   @ApiOperation({
     summary: '删除预约',
     description: '通常仅用于清理草稿或异常测试数据，已履约订单不建议删除。',

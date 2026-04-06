@@ -113,6 +113,59 @@ enum PaymentStatus {
   FAILED
 }
 
+// MARK: - 完课确认状态
+enum BookingCompletionStatus {
+  PENDING_TEACHER_RECORD
+  PENDING_GUARDIAN_CONFIRM
+  GUARDIAN_CONFIRMED
+  AUTO_CONFIRMED
+  DISPUTED
+}
+
+// MARK: - 预约异常状态
+enum BookingExceptionStatus {
+  NONE
+  OPEN
+  BLOCKING
+}
+
+// MARK: - 结算资格状态
+enum SettlementReadiness {
+  NOT_READY
+  READY
+  BLOCKED
+}
+
+// MARK: - 预约异常类型
+enum BookingExceptionType {
+  PAYMENT_MISMATCH
+  OVERDUE_NOT_STARTED
+  OVERDUE_NOT_FINISHED
+  ARRIVAL_DISPUTE
+  NO_FEEDBACK
+  LESSON_QUALITY_DISPUTE
+  DURATION_DISPUTE
+  MANUAL_REPAIR_REQUIRED
+}
+
+// MARK: - 异常责任方
+enum ResponsibilityType {
+  TEACHER
+  GUARDIAN
+  PLATFORM
+  UNKNOWN
+}
+
+// MARK: - 异常工单状态
+enum BookingExceptionCaseStatus {
+  OPEN
+  WAITING_TEACHER
+  WAITING_GUARDIAN
+  WAITING_ADMIN
+  RESOLVED
+  CLOSED
+}
+
 // MARK: - 支付意图状态
 enum PaymentIntentStatus {
   REQUIRES_PAYMENT
@@ -193,6 +246,15 @@ enum LessonAttendanceStatus {
   STUDENT_ABSENT
   TEACHER_ABSENT
   CANCELLED
+}
+
+// MARK: - 课程证据类型
+enum LessonEvidenceType {
+  ARRIVAL_PHOTO
+  ARRIVAL_VIDEO
+  RESULT_PHOTO
+  RESULT_VIDEO
+  OTHER
 }
 
 // MARK: - 提现状态
@@ -761,49 +823,54 @@ model RealNameVerificationSession {
 
 // MARK: - 预约
 model Booking {
-  id                  String                     @id @default(cuid())
-  bookingNo           String                     @unique @map("booking_no")
-  teacherProfileId    String                     @map("teacher_profile_id")
-  studentProfileId    String                     @map("student_profile_id")
-  guardianProfileId   String?                    @map("guardian_profile_id")
-  subjectId           String                     @map("subject_id")
-  serviceAddressId    String                     @map("service_address_id")
-  startAt             DateTime                   @map("start_at")
-  endAt               DateTime                   @map("end_at")
-  timezone            String                     @default("Asia/Shanghai")
-  status              BookingStatus              @default(PENDING_ACCEPTANCE)
-  cancellationReason  BookingCancellationReason? @map("cancellation_reason")
-  cancelledAt         DateTime?                  @map("cancelled_at")
-  cancelledByUserId   String?                    @map("cancelled_by_user_id")
-  isTrial             Boolean                    @default(false) @map("is_trial")
-  teacherAcceptedAt   DateTime?                  @map("teacher_accepted_at")
-  guardianConfirmedAt DateTime?                  @map("guardian_confirmed_at")
-  hourlyRate          Decimal                    @map("hourly_rate") @db.Decimal(10, 2)
-  durationMinutes     Int                        @map("duration_minutes")
-  subtotalAmount      Decimal                    @map("subtotal_amount") @db.Decimal(12, 2)
-  discountAmount      Decimal                    @default(0) @map("discount_amount") @db.Decimal(12, 2)
-  platformFeeAmount   Decimal                    @default(0) @map("platform_fee_amount") @db.Decimal(12, 2)
-  travelFeeAmount     Decimal                    @default(0) @map("travel_fee_amount") @db.Decimal(12, 2)
-  totalAmount         Decimal                    @map("total_amount") @db.Decimal(12, 2)
-  currency            Currency                   @default(CNY)
-  paymentStatus       PaymentStatus              @default(UNPAID) @map("payment_status")
-  paymentDueAt        DateTime?                  @map("payment_due_at")
-  statusRemark        String?                    @map("status_remark")
-  planSummary         String?                    @map("plan_summary")
-  notes               String?
-  createdAt           DateTime                   @default(now()) @map("created_at")
-  updatedAt           DateTime                   @updatedAt @map("updated_at")
+  id                    String                     @id @default(cuid())
+  bookingNo             String                     @unique @map("booking_no")
+  teacherProfileId      String                     @map("teacher_profile_id")
+  studentProfileId      String                     @map("student_profile_id")
+  guardianProfileId     String?                    @map("guardian_profile_id")
+  subjectId             String                     @map("subject_id")
+  serviceAddressId      String                     @map("service_address_id")
+  startAt               DateTime                   @map("start_at")
+  endAt                 DateTime                   @map("end_at")
+  timezone              String                     @default("Asia/Shanghai")
+  status                BookingStatus              @default(PENDING_ACCEPTANCE)
+  cancellationReason    BookingCancellationReason? @map("cancellation_reason")
+  cancelledAt           DateTime?                  @map("cancelled_at")
+  cancelledByUserId     String?                    @map("cancelled_by_user_id")
+  isTrial               Boolean                    @default(false) @map("is_trial")
+  teacherAcceptedAt     DateTime?                  @map("teacher_accepted_at")
+  guardianConfirmedAt   DateTime?                  @map("guardian_confirmed_at")
+  hourlyRate            Decimal                    @map("hourly_rate") @db.Decimal(10, 2)
+  durationMinutes       Int                        @map("duration_minutes")
+  subtotalAmount        Decimal                    @map("subtotal_amount") @db.Decimal(12, 2)
+  discountAmount        Decimal                    @default(0) @map("discount_amount") @db.Decimal(12, 2)
+  platformFeeAmount     Decimal                    @default(0) @map("platform_fee_amount") @db.Decimal(12, 2)
+  travelFeeAmount       Decimal                    @default(0) @map("travel_fee_amount") @db.Decimal(12, 2)
+  totalAmount           Decimal                    @map("total_amount") @db.Decimal(12, 2)
+  currency              Currency                   @default(CNY)
+  paymentStatus         PaymentStatus              @default(UNPAID) @map("payment_status")
+  paymentDueAt          DateTime?                  @map("payment_due_at")
+  completionStatus      BookingCompletionStatus    @default(PENDING_TEACHER_RECORD) @map("completion_status")
+  completionConfirmedAt DateTime?                  @map("completion_confirmed_at")
+  exceptionStatus       BookingExceptionStatus     @default(NONE) @map("exception_status")
+  settlementReadiness   SettlementReadiness        @default(NOT_READY) @map("settlement_readiness")
+  statusRemark          String?                    @map("status_remark")
+  planSummary           String?                    @map("plan_summary")
+  notes                 String?
+  createdAt             DateTime                   @default(now()) @map("created_at")
+  updatedAt             DateTime                   @updatedAt @map("updated_at")
 
-  teacherProfile     TeacherProfile      @relation(fields: [teacherProfileId], references: [id], onDelete: Restrict)
-  studentProfile     StudentProfile      @relation(fields: [studentProfileId], references: [id], onDelete: Restrict)
-  guardianProfile    GuardianProfile?    @relation(fields: [guardianProfileId], references: [id], onDelete: SetNull)
-  subject            Subject             @relation(fields: [subjectId], references: [id], onDelete: Restrict)
-  serviceAddress     Address             @relation("BookingServiceAddress", fields: [serviceAddressId], references: [id], onDelete: Restrict)
-  cancelledByUser    User?               @relation("BookingCancelledBy", fields: [cancelledByUserId], references: [id], onDelete: SetNull)
+  teacherProfile     TeacherProfile         @relation(fields: [teacherProfileId], references: [id], onDelete: Restrict)
+  studentProfile     StudentProfile         @relation(fields: [studentProfileId], references: [id], onDelete: Restrict)
+  guardianProfile    GuardianProfile?       @relation(fields: [guardianProfileId], references: [id], onDelete: SetNull)
+  subject            Subject                @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  serviceAddress     Address                @relation("BookingServiceAddress", fields: [serviceAddressId], references: [id], onDelete: Restrict)
+  cancelledByUser    User?                  @relation("BookingCancelledBy", fields: [cancelledByUserId], references: [id], onDelete: SetNull)
   lesson             Lesson?
   paymentIntent      PaymentIntent?
   review             TeacherReview?
   rescheduleRequests RescheduleRequest[]
+  exceptionCases     BookingExceptionCase[]
   walletTransactions WalletTransaction[]
 
   @@index([teacherProfileId, startAt, status])
@@ -868,6 +935,11 @@ model Lesson {
   teacherProfileId    String                 @map("teacher_profile_id")
   studentProfileId    String                 @map("student_profile_id")
   attendanceStatus    LessonAttendanceStatus @default(SCHEDULED) @map("attendance_status")
+  arrivalConfirmedAt  DateTime?              @map("arrival_confirmed_at")
+  arrivalLatitude     Decimal?               @map("arrival_latitude") @db.Decimal(10, 7)
+  arrivalLongitude    Decimal?               @map("arrival_longitude") @db.Decimal(10, 7)
+  arrivalAddress      String?                @map("arrival_address")
+  arrivalNote         String?                @map("arrival_note")
   checkInAt           DateTime?              @map("check_in_at")
   checkInLatitude     Decimal?               @map("check_in_latitude") @db.Decimal(10, 7)
   checkInLongitude    Decimal?               @map("check_in_longitude") @db.Decimal(10, 7)
@@ -886,13 +958,56 @@ model Lesson {
   createdAt           DateTime               @default(now()) @map("created_at")
   updatedAt           DateTime               @updatedAt @map("updated_at")
 
-  booking        Booking        @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  teacherProfile TeacherProfile @relation(fields: [teacherProfileId], references: [id], onDelete: Restrict)
-  studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id], onDelete: Restrict)
+  booking        Booking          @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  teacherProfile TeacherProfile   @relation(fields: [teacherProfileId], references: [id], onDelete: Restrict)
+  studentProfile StudentProfile   @relation(fields: [studentProfileId], references: [id], onDelete: Restrict)
+  evidences      LessonEvidence[]
 
   @@index([teacherProfileId, attendanceStatus, startedAt])
   @@index([studentProfileId, attendanceStatus, startedAt])
   @@map("lessons")
+}
+
+// MARK: - 预约异常工单
+model BookingExceptionCase {
+  id                 String                     @id @default(cuid())
+  bookingId          String                     @map("booking_id")
+  exceptionType      BookingExceptionType       @map("exception_type")
+  status             BookingExceptionCaseStatus @default(OPEN)
+  responsibilityType ResponsibilityType         @default(UNKNOWN) @map("responsibility_type")
+  summary            String
+  resolution         String?
+  metadata           Json?
+  createdByUserId    String?                    @map("created_by_user_id")
+  resolvedByUserId   String?                    @map("resolved_by_user_id")
+  createdAt          DateTime                   @default(now()) @map("created_at")
+  updatedAt          DateTime                   @updatedAt @map("updated_at")
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@unique([bookingId, exceptionType])
+  @@index([status, createdAt])
+  @@index([responsibilityType, status])
+  @@map("booking_exception_cases")
+}
+
+// MARK: - 课程证据
+model LessonEvidence {
+  id               String             @id @default(cuid())
+  lessonId         String             @map("lesson_id")
+  type             LessonEvidenceType
+  url              String
+  note             String?
+  uploadedByUserId String             @map("uploaded_by_user_id")
+  uploadedAt       DateTime           @default(now()) @map("uploaded_at")
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@index([lessonId, type, uploadedAt])
+  @@index([uploadedByUserId, uploadedAt])
+  @@map("lesson_evidences")
 }
 
 // MARK: - 教师评价

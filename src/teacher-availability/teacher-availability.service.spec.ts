@@ -35,6 +35,7 @@ describe('TeacherAvailabilityService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    delete process.env.DEV_MVP_RELAXATIONS_ENABLED;
     service = new TeacherAvailabilityService(prisma as any);
   });
 
@@ -124,7 +125,8 @@ describe('TeacherAvailabilityService', () => {
         displayName: '李老师',
         bio: '钢琴启蒙',
         employmentType: 'PART_TIME',
-        verificationStatus: TeacherVerificationStatus.APPROVED,
+        verificationStatus: TeacherVerificationStatus.PENDING,
+        onboardingCompletedAt: new Date('2026-03-20T00:00:00.000Z'),
         baseHourlyRate: { toString: () => '200' },
         ratingAvg: { toString: () => '4.8' },
         ratingCount: 12,
@@ -174,5 +176,71 @@ describe('TeacherAvailabilityService', () => {
     expect(result.items).toHaveLength(1);
     expect(result.items[0]?.displayName).toBe('李老师');
     expect(result.items[0]?.matchingWindows).toHaveLength(1);
+  });
+
+  it('should discover onboarding-complete teachers during dev MVP even before approval', async () => {
+    process.env.DEV_MVP_RELAXATIONS_ENABLED = 'true';
+    service = new TeacherAvailabilityService(prisma as any);
+
+    prisma.teacherProfile.findMany.mockResolvedValue([
+      {
+        id: 'teacher_1',
+        userId: 'user_teacher_1',
+        displayName: '李老师',
+        bio: '钢琴启蒙',
+        employmentType: 'PART_TIME',
+        verificationStatus: TeacherVerificationStatus.PENDING,
+        onboardingCompletedAt: new Date('2026-03-20T00:00:00.000Z'),
+        baseHourlyRate: { toString: () => '200' },
+        ratingAvg: { toString: () => '4.8' },
+        ratingCount: 12,
+        createdAt: new Date('2026-03-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-03-21T00:00:00.000Z'),
+        subjects: [
+          {
+            experienceYears: 5,
+            isActive: true,
+            subject: {
+              id: 'subject_1',
+              code: 'PIANO',
+              name: '钢琴',
+            },
+          },
+        ],
+        credentials: [{ name: '教师资格证' }],
+        serviceAreas: [{ district: '南开区' }],
+      },
+    ]);
+    prisma.teacherProfile.findUnique.mockResolvedValue({
+      id: 'teacher_1',
+      timezone: 'Asia/Shanghai',
+    });
+    prisma.teacherAvailabilityRule.findMany.mockResolvedValue([
+      {
+        id: 'rule_1',
+        weekday: Weekday.TUESDAY,
+        startMinute: 10 * 60,
+        endMinute: 11 * 60,
+        slotDurationMinutes: 60,
+        bufferMinutes: 0,
+        effectiveFrom: new Date('2026-03-24T00:00:00.000Z'),
+        effectiveTo: new Date('2026-03-24T00:00:00.000Z'),
+        isActive: true,
+      },
+    ]);
+    prisma.teacherAvailabilityBlock.findMany.mockResolvedValue([]);
+    prisma.booking.findMany.mockResolvedValue([]);
+
+    const result = await service.listDiscoverTeachers({
+      from: '2026-03-24T00:00:00.000Z',
+      to: '2026-03-25T00:00:00.000Z',
+      windowLimit: 3,
+    });
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]?.displayName).toBe('李老师');
+    expect(result.items[0]?.verificationStatus).toBe(
+      TeacherVerificationStatus.PENDING,
+    );
   });
 });

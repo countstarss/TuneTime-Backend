@@ -7,6 +7,7 @@ import {
   PlatformRole,
   TeacherVerificationStatus,
   UserStatus,
+  Weekday,
 } from '@prisma/client';
 import { AuthService } from './auth.service';
 
@@ -18,6 +19,10 @@ describe('AuthService', () => {
     teacherProfile: {
       findUnique: jest.fn(),
       update: jest.fn(),
+    },
+    teacherAvailabilityRule: {
+      count: jest.fn(),
+      createMany: jest.fn(),
     },
     guardianProfile: {
       findUnique: jest.fn(),
@@ -71,10 +76,13 @@ describe('AuthService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    delete process.env.DEV_MVP_RELAXATIONS_ENABLED;
     process.env.AUTH_JWT_SECRET = '12345678901234567890123456789012';
     prisma.$queryRawUnsafe.mockResolvedValue([]);
     prisma.$executeRawUnsafe.mockResolvedValue(1);
     prisma.$transaction.mockImplementation((callback: any) => callback(prisma));
+    prisma.teacherAvailabilityRule.count.mockResolvedValue(0);
+    prisma.teacherAvailabilityRule.createMany.mockResolvedValue({ count: 7 });
     realNameVerificationService.getVerificationSnapshot.mockResolvedValue({
       realNameVerifiedAt: null,
       realNameProvider: null,
@@ -231,6 +239,88 @@ describe('AuthService', () => {
     expect(result.accessToken).toBe('test-token');
   });
 
+  it('should allow dev MVP readiness without real-name verification or teacher approval', async () => {
+    process.env.DEV_MVP_RELAXATIONS_ENABLED = 'true';
+    service = new AuthService(
+      prisma as never,
+      passwordAuthService as never,
+      smsAuthService as never,
+      wechatAuthService as never,
+      profileBootstrapService as never,
+      realNameVerificationService as never,
+    );
+
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user_1',
+      name: '王女士',
+      email: null,
+      phone: '13800138000',
+      phoneVerifiedAt: new Date('2026-03-20T00:00:00.000Z'),
+      image: null,
+      status: UserStatus.ACTIVE,
+      passwordCredential: null,
+      accounts: [],
+      teacherProfile: {
+        id: 'teacher_1',
+        displayName: '李老师',
+        bio: '钢琴老师',
+        employmentType: 'PART_TIME',
+        baseHourlyRate: { toString: () => '200' },
+        serviceRadiusKm: 8,
+        acceptTrial: true,
+        maxTravelMinutes: 50,
+        agreementAcceptedAt: new Date('2026-03-18T00:00:00.000Z'),
+        agreementVersion: 'miniapp-mvp-v1',
+        verificationStatus: TeacherVerificationStatus.PENDING,
+        onboardingCompletedAt: new Date('2026-03-20T00:00:00.000Z'),
+        subjects: [{ id: 'teacher_subject_1' }],
+        serviceAreas: [{ id: 'service_area_1' }],
+        credentials: [],
+      },
+      guardianProfile: {
+        id: 'guardian_1',
+        displayName: '王女士',
+        phone: '13800138000',
+        emergencyContactName: '王先生',
+        emergencyContactPhone: '13800138001',
+        defaultServiceAddressId: 'addr_1',
+        onboardingCompletedAt: new Date('2026-03-20T00:00:00.000Z'),
+        students: [
+          {
+            studentProfile: {
+              id: 'student_1',
+              displayName: '小王',
+              gradeLevel: 'PRIMARY',
+              dateOfBirth: null,
+              schoolName: null,
+              learningGoals: null,
+              specialNeeds: null,
+            },
+          },
+        ],
+      },
+      studentProfile: null,
+      roles: [
+        { role: PlatformRole.GUARDIAN, isPrimary: true },
+        { role: PlatformRole.TEACHER, isPrimary: false },
+      ],
+    });
+
+    const profile = await service.getProfileByUserId(
+      'user_1',
+      PlatformRole.TEACHER,
+    );
+
+    expect(profile?.onboardingState.teacher.canAcceptBookings).toBe(true);
+    expect(profile?.onboardingState.guardian.canBookLessons).toBe(true);
+    expect(profile?.onboardingState.teacher.missingRequiredItems).not.toContain(
+      '实名认证',
+    );
+    expect(
+      profile?.onboardingState.guardian.missingRequiredItems,
+    ).not.toContain('实名认证');
+  });
+
   it('should delegate miniapp login and issue auth response', async () => {
     wechatAuthService.loginWithMiniappCode.mockResolvedValue({
       userId: 'user_1',
@@ -328,6 +418,77 @@ describe('AuthService', () => {
       success: true,
       expiresInSeconds: 600,
       cooldownSeconds: 60,
+    });
+  });
+
+  it('should seed default teacher availability rules after onboarding completion', async () => {
+    process.env.DEV_MVP_RELAXATIONS_ENABLED = 'true';
+    service = new AuthService(
+      prisma as never,
+      passwordAuthService as never,
+      smsAuthService as never,
+      wechatAuthService as never,
+      profileBootstrapService as never,
+      realNameVerificationService as never,
+    );
+
+    prisma.teacherProfile.findUnique.mockResolvedValue({ id: 'teacher_1' });
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user_1',
+      name: '李老师',
+      email: null,
+      phone: '13800138000',
+      phoneVerifiedAt: new Date('2026-03-20T00:00:00.000Z'),
+      image: null,
+      status: UserStatus.ACTIVE,
+      passwordCredential: null,
+      accounts: [],
+      teacherProfile: {
+        id: 'teacher_1',
+        displayName: '李老师',
+        bio: '钢琴老师',
+        employmentType: 'PART_TIME',
+        baseHourlyRate: { toString: () => '200' },
+        serviceRadiusKm: 8,
+        acceptTrial: true,
+        maxTravelMinutes: 50,
+        agreementAcceptedAt: new Date('2026-03-18T00:00:00.000Z'),
+        agreementVersion: 'miniapp-mvp-v1',
+        verificationStatus: TeacherVerificationStatus.PENDING,
+        onboardingCompletedAt: new Date('2026-03-20T00:00:00.000Z'),
+        subjects: [{ id: 'teacher_subject_1' }],
+        serviceAreas: [{ id: 'service_area_1' }],
+        credentials: [],
+      },
+      guardianProfile: null,
+      studentProfile: null,
+      roles: [{ role: PlatformRole.TEACHER, isPrimary: true }],
+    });
+
+    await service.updateSelfTeacherOnboarding('user_1', {
+      displayName: '李老师',
+      bio: '钢琴老师',
+      employmentType: 'PART_TIME' as any,
+      baseHourlyRate: 200,
+      agreementAcceptedAt: '2026-03-18T00:00:00.000Z',
+      agreementVersion: 'miniapp-mvp-v1',
+      onboardingCompleted: true,
+    });
+
+    expect(prisma.teacherAvailabilityRule.count).toHaveBeenCalledWith({
+      where: { teacherProfileId: 'teacher_1' },
+    });
+    expect(prisma.teacherAvailabilityRule.createMany).toHaveBeenCalledWith({
+      data: expect.arrayContaining([
+        expect.objectContaining({
+          teacherProfileId: 'teacher_1',
+          weekday: Weekday.MONDAY,
+          startMinute: 1140,
+          endMinute: 1260,
+          slotDurationMinutes: 60,
+          bufferMinutes: 0,
+        }),
+      ]),
     });
   });
 

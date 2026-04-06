@@ -10,6 +10,7 @@ import {
   TeacherVerificationStatus,
   Weekday,
 } from '@prisma/client';
+import { isDevMvpRelaxationEnabled } from '../common/dev-mvp.util';
 import { AuthenticatedUserContext } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -84,6 +85,8 @@ type TeacherSearchRecord = {
 @Injectable()
 export class TeacherAvailabilityService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private readonly devMvpRelaxationEnabled = isDevMvpRelaxationEnabled();
 
   private readonly conflictStatuses: BookingStatus[] = [
     BookingStatus.PENDING_ACCEPTANCE,
@@ -545,12 +548,25 @@ export class TeacherAvailabilityService {
     return windows;
   }
 
-  private async loadApprovedTeacherSearchRecords(): Promise<
+  private async loadDiscoverableTeacherSearchRecords(): Promise<
     TeacherSearchRecord[]
   > {
     return (await this.prisma.teacherProfile.findMany({
       where: {
-        verificationStatus: TeacherVerificationStatus.APPROVED,
+        ...(this.devMvpRelaxationEnabled
+          ? {
+              // FIXME(dev-mvp): 为了在开发阶段跑通“新老师完成资料后即可被家长发现并下单”的闭环，
+              // 这里临时放宽老师发现条件，不再强制要求审核通过。
+              onboardingCompletedAt: { not: null },
+            }
+          : {
+              verificationStatus: TeacherVerificationStatus.APPROVED,
+            }),
+        subjects: {
+          some: {
+            isActive: true,
+          },
+        },
       },
       select: {
         id: true,
@@ -677,7 +693,7 @@ export class TeacherAvailabilityService {
       throw new BadRequestException('时间范围不合法');
     }
 
-    const teachers = await this.loadApprovedTeacherSearchRecords();
+    const teachers = await this.loadDiscoverableTeacherSearchRecords();
     const items = await Promise.all(
       teachers.map(async (teacher) => {
         const previewWindows = (
@@ -703,7 +719,15 @@ export class TeacherAvailabilityService {
 
     const teachers = await this.prisma.teacherProfile.findMany({
       where: {
-        verificationStatus: TeacherVerificationStatus.APPROVED,
+        ...(this.devMvpRelaxationEnabled
+          ? {
+              // FIXME(dev-mvp): 为了在开发阶段跑通“新老师完成资料后即可被家长搜索并下单”的闭环，
+              // 这里临时放宽老师搜索条件，不再强制要求审核通过。
+              onboardingCompletedAt: { not: null },
+            }
+          : {
+              verificationStatus: TeacherVerificationStatus.APPROVED,
+            }),
         subjects: {
           some: {
             isActive: true,

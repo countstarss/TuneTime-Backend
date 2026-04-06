@@ -17,6 +17,11 @@ export class AppController {
       bookingHold: true,
       calendar: true,
       reschedule: true,
+      lessonEvidence: true,
+      completionConfirm: true,
+      dispute: true,
+      manualRepair: true,
+      lifecycleAutomation: true,
     };
   }
 }

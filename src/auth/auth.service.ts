@@ -13,7 +13,9 @@ import {
   TeacherEmploymentType,
   TeacherVerificationStatus,
   UserStatus,
+  Weekday,
 } from '@prisma/client';
+import { isDevMvpRelaxationEnabled } from '../common/dev-mvp.util';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   AuthenticatedUserContext,
@@ -49,8 +51,26 @@ type GuardianLinkedStudent = Prisma.StudentProfileGetPayload<{
   include: typeof guardianStudentInclude;
 }>;
 
+const devMvpDefaultTeacherAvailabilityRules = [
+  Weekday.MONDAY,
+  Weekday.TUESDAY,
+  Weekday.WEDNESDAY,
+  Weekday.THURSDAY,
+  Weekday.FRIDAY,
+  Weekday.SATURDAY,
+  Weekday.SUNDAY,
+].map((weekday) => ({
+  weekday,
+  startMinute: 19 * 60,
+  endMinute: 21 * 60,
+  slotDurationMinutes: 60,
+  bufferMinutes: 0,
+}));
+
 @Injectable()
 export class AuthService {
+  private readonly devMvpRelaxationEnabled = isDevMvpRelaxationEnabled();
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly passwordAuthService: PasswordAuthService,
@@ -79,6 +99,33 @@ export class AuthService {
         .filter((item) => !item.completed)
         .map((item) => item.label),
     };
+  }
+
+  private async ensureDevMvpTeacherAvailabilityRules(
+    tx: any,
+    teacherProfileId: string,
+  ) {
+    if (!this.devMvpRelaxationEnabled) {
+      return;
+    }
+
+    const existingRuleCount = await tx.teacherAvailabilityRule.count({
+      where: { teacherProfileId },
+    });
+
+    if (existingRuleCount > 0) {
+      return;
+    }
+
+    // FIXME(dev-mvp): 为了在开发阶段跑通“老师补资料后即可被家长下单”的闭环，
+    // 这里在老师首次完成 MVP onboarding 且尚无任何排班规则时自动预置默认晚间时段。
+    // 正式版恢复时应移除此自动初始化，并改回由老师显式配置可接单时间。
+    await tx.teacherAvailabilityRule.createMany({
+      data: devMvpDefaultTeacherAvailabilityRules.map((rule) => ({
+        teacherProfileId,
+        ...rule,
+      })),
+    });
   }
 
   private async getProfileProjection(userId: string) {
@@ -243,7 +290,9 @@ export class AuthService {
         label: '入驻协议',
         completed: !!user.teacherProfile?.agreementAcceptedAt,
       },
-      { label: '实名认证', completed: realNameVerified },
+      ...(this.devMvpRelaxationEnabled
+        ? []
+        : [{ label: '实名认证', completed: realNameVerified }]),
     ];
     const teacherOptionalItems = [
       {
@@ -292,7 +341,9 @@ export class AuthService {
         label: '默认上课地址',
         completed: !!user.guardianProfile?.defaultServiceAddressId,
       },
-      { label: '实名认证', completed: realNameVerified },
+      ...(this.devMvpRelaxationEnabled
+        ? []
+        : [{ label: '实名认证', completed: realNameVerified }]),
     ];
     const guardianOptionalItems = [
       { label: '出生日期', completed: !!guardianStudent?.dateOfBirth },
@@ -369,10 +420,16 @@ export class AuthService {
           missingOptionalItems: teacherCompletion.missingOptionalItems,
           realNameVerified,
           verificationStatus: user.teacherProfile?.verificationStatus ?? null,
+          // FIXME(dev-mvp): 为了在开发阶段跑通老师接单闭环，临时放宽老师 readiness，
+          // 当前不再要求实名认证或审核通过即可进入可接单态。
+          // 正式版恢复时应重新要求实名认证完成且 verificationStatus = APPROVED。
           canAcceptBookings:
             teacherCompletion.missingRequiredItems.length === 0 &&
-            user.teacherProfile?.verificationStatus ===
-              TeacherVerificationStatus.APPROVED,
+            (this.devMvpRelaxationEnabled
+              ? true
+              : realNameVerified &&
+                user.teacherProfile?.verificationStatus ===
+                  TeacherVerificationStatus.APPROVED),
         },
         guardian: {
           profileExists: !!user.guardianProfile,
@@ -384,7 +441,12 @@ export class AuthService {
           hasDefaultAddress: !!user.guardianProfile?.defaultServiceAddressId,
           missingRequiredItems: guardianCompletion.missingRequiredItems,
           missingOptionalItems: guardianCompletion.missingOptionalItems,
-          canBookLessons: guardianCompletion.missingRequiredItems.length === 0,
+          // FIXME(dev-mvp): 为了在开发阶段跑通家长下单闭环，临时放宽家长 readiness，
+          // 当前不再要求实名认证即可进入可下单态。
+          // 正式版恢复时应重新要求实名认证完成后才开放下单。
+          canBookLessons:
+            guardianCompletion.missingRequiredItems.length === 0 &&
+            (this.devMvpRelaxationEnabled ? true : realNameVerified),
         },
         student: {
           profileExists: !!user.studentProfile,
@@ -1417,6 +1479,10 @@ export class AuthService {
             })),
           });
         }
+      }
+
+      if (dto.onboardingCompleted) {
+        await this.ensureDevMvpTeacherAvailabilityRules(tx, teacher.id);
       }
     });
 

@@ -1,18 +1,25 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import {
+  BookingCompletionStatus,
   BookingStatus,
   Lesson,
   LessonAttendanceStatus,
+  LessonEvidenceType,
+  PlatformRole,
   Prisma,
+  SettlementReadiness,
 } from '@prisma/client';
+import { AuthenticatedUserContext } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
 import { CheckInLessonDto } from './dto/check-in-lesson.dto';
 import { CheckOutLessonDto } from './dto/check-out-lesson.dto';
+import { CreateLessonEvidenceDto } from './dto/create-lesson-evidence.dto';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import {
   DeleteLessonResponseDto,
@@ -31,6 +38,9 @@ type LessonWithRelations = Lesson & {
     status: BookingStatus;
     startAt: Date;
     endAt: Date;
+    guardianProfile: {
+      userId: string;
+    } | null;
   };
   teacherProfile: {
     id: string;
@@ -43,6 +53,14 @@ type LessonWithRelations = Lesson & {
     displayName: string;
     gradeLevel: string | null;
   };
+  evidences: Array<{
+    id: string;
+    type: LessonEvidenceType;
+    url: string;
+    note: string | null;
+    uploadedByUserId: string;
+    uploadedAt: Date;
+  }>;
 };
 
 @Injectable()
@@ -91,6 +109,11 @@ export class LessonsService {
           status: true,
           startAt: true,
           endAt: true,
+          guardianProfile: {
+            select: {
+              userId: true,
+            },
+          },
         },
       },
       teacherProfile: {
@@ -108,6 +131,17 @@ export class LessonsService {
           gradeLevel: true,
         },
       },
+      evidences: {
+        orderBy: [{ uploadedAt: 'desc' }],
+        select: {
+          id: true,
+          type: true,
+          url: true,
+          note: true,
+          uploadedByUserId: true,
+          uploadedAt: true,
+        },
+      },
     } satisfies Prisma.LessonInclude;
   }
 
@@ -118,6 +152,11 @@ export class LessonsService {
       teacherProfileId: lesson.teacherProfileId,
       studentProfileId: lesson.studentProfileId,
       attendanceStatus: lesson.attendanceStatus,
+      arrivalConfirmedAt: lesson.arrivalConfirmedAt,
+      arrivalLatitude: this.toNumber(lesson.arrivalLatitude),
+      arrivalLongitude: this.toNumber(lesson.arrivalLongitude),
+      arrivalAddress: lesson.arrivalAddress,
+      arrivalNote: lesson.arrivalNote,
       checkInAt: lesson.checkInAt,
       checkInLatitude: this.toNumber(lesson.checkInLatitude),
       checkInLongitude: this.toNumber(lesson.checkInLongitude),
@@ -151,6 +190,14 @@ export class LessonsService {
         displayName: lesson.studentProfile.displayName,
         gradeLevel: lesson.studentProfile.gradeLevel,
       },
+      evidences: (lesson.evidences ?? []).map((item) => ({
+        id: item.id,
+        type: item.type,
+        url: item.url,
+        note: item.note,
+        uploadedByUserId: item.uploadedByUserId,
+        uploadedAt: item.uploadedAt,
+      })),
       createdAt: lesson.createdAt,
       updatedAt: lesson.updatedAt,
     };
@@ -167,6 +214,34 @@ export class LessonsService {
     }
 
     return lesson;
+  }
+
+  private ensureLessonAccess(
+    currentUser: AuthenticatedUserContext,
+    lesson: LessonWithRelations,
+  ) {
+    if (
+      currentUser.activeRole === PlatformRole.ADMIN ||
+      currentUser.activeRole === PlatformRole.SUPER_ADMIN
+    ) {
+      return;
+    }
+
+    if (
+      currentUser.activeRole === PlatformRole.TEACHER &&
+      lesson.teacherProfile.userId === currentUser.userId
+    ) {
+      return;
+    }
+
+    if (
+      currentUser.activeRole === PlatformRole.GUARDIAN &&
+      lesson.booking.guardianProfile?.userId === currentUser.userId
+    ) {
+      return;
+    }
+
+    throw new ForbiddenException('当前账号无权访问该课程记录');
   }
 
   private async findLessonByBookingIdOrThrow(
@@ -282,13 +357,46 @@ export class LessonsService {
     };
   }
 
-  async findByBookingId(bookingId: string): Promise<LessonResponseDto> {
+  async findByBookingId(
+    currentUserOrBookingId: AuthenticatedUserContext | string,
+    maybeBookingId?: string,
+  ): Promise<LessonResponseDto> {
+    const currentUser =
+      typeof currentUserOrBookingId === 'string'
+        ? undefined
+        : currentUserOrBookingId;
+    const bookingId =
+      typeof currentUserOrBookingId === 'string'
+        ? currentUserOrBookingId
+        : maybeBookingId;
+
+    if (!bookingId) {
+      throw new BadRequestException('bookingId 不能为空');
+    }
+
     const lesson = await this.findLessonByBookingIdOrThrow(bookingId);
+    if (currentUser) {
+      this.ensureLessonAccess(currentUser, lesson);
+    }
     return this.toResponse(lesson);
   }
 
-  async findOne(id: string): Promise<LessonResponseDto> {
+  async findOne(
+    currentUserOrId: AuthenticatedUserContext | string,
+    maybeId?: string,
+  ): Promise<LessonResponseDto> {
+    const currentUser =
+      typeof currentUserOrId === 'string' ? undefined : currentUserOrId;
+    const id = typeof currentUserOrId === 'string' ? currentUserOrId : maybeId;
+
+    if (!id) {
+      throw new BadRequestException('id 不能为空');
+    }
+
     const lesson = await this.findLessonOrThrow(id);
+    if (currentUser) {
+      this.ensureLessonAccess(currentUser, lesson);
+    }
     return this.toResponse(lesson);
   }
 
@@ -339,8 +447,30 @@ export class LessonsService {
     return this.toResponse(lesson);
   }
 
-  async checkIn(id: string, dto: CheckInLessonDto): Promise<LessonResponseDto> {
+  async checkIn(
+    currentUserOrId: AuthenticatedUserContext | string,
+    idOrDto: string | CheckInLessonDto,
+    maybeDto?: CheckInLessonDto,
+  ): Promise<LessonResponseDto> {
+    const currentUser =
+      typeof currentUserOrId === 'string' ? undefined : currentUserOrId;
+    const id =
+      typeof currentUserOrId === 'string'
+        ? currentUserOrId
+        : (idOrDto as string);
+    const dto =
+      typeof currentUserOrId === 'string'
+        ? (idOrDto as CheckInLessonDto)
+        : maybeDto;
+
+    if (!dto) {
+      throw new BadRequestException('签到参数不能为空');
+    }
+
     const current = await this.findLessonOrThrow(id);
+    if (currentUser) {
+      this.ensureLessonAccess(currentUser, current);
+    }
 
     if (current.attendanceStatus !== LessonAttendanceStatus.SCHEDULED) {
       throw new BadRequestException('只有待上课状态的课程才可以签到');
@@ -369,7 +499,10 @@ export class LessonsService {
 
       await tx.booking.update({
         where: { id: current.bookingId },
-        data: { status: BookingStatus.IN_PROGRESS },
+        data: {
+          status: BookingStatus.IN_PROGRESS,
+          settlementReadiness: SettlementReadiness.NOT_READY,
+        },
       });
 
       return updatedLesson;
@@ -379,10 +512,29 @@ export class LessonsService {
   }
 
   async checkOut(
-    id: string,
-    dto: CheckOutLessonDto,
+    currentUserOrId: AuthenticatedUserContext | string,
+    idOrDto: string | CheckOutLessonDto,
+    maybeDto?: CheckOutLessonDto,
   ): Promise<LessonResponseDto> {
+    const currentUser =
+      typeof currentUserOrId === 'string' ? undefined : currentUserOrId;
+    const id =
+      typeof currentUserOrId === 'string'
+        ? currentUserOrId
+        : (idOrDto as string);
+    const dto =
+      typeof currentUserOrId === 'string'
+        ? (idOrDto as CheckOutLessonDto)
+        : maybeDto;
+
+    if (!dto) {
+      throw new BadRequestException('签退参数不能为空');
+    }
+
     const current = await this.findLessonOrThrow(id);
+    if (currentUser) {
+      this.ensureLessonAccess(currentUser, current);
+    }
 
     if (
       !this.hasAttendanceStatus(current.attendanceStatus, [
@@ -423,7 +575,11 @@ export class LessonsService {
 
       await tx.booking.update({
         where: { id: current.bookingId },
-        data: { status: BookingStatus.COMPLETED },
+        data: {
+          status: BookingStatus.COMPLETED,
+          completionStatus: BookingCompletionStatus.PENDING_TEACHER_RECORD,
+          settlementReadiness: SettlementReadiness.NOT_READY,
+        },
       });
 
       return updatedLesson;
@@ -465,38 +621,125 @@ export class LessonsService {
   }
 
   async submitFeedback(
-    id: string,
-    dto: SubmitLessonFeedbackDto,
+    currentUserOrId: AuthenticatedUserContext | string,
+    idOrDto: string | SubmitLessonFeedbackDto,
+    maybeDto?: SubmitLessonFeedbackDto,
   ): Promise<LessonResponseDto> {
-    const current = await this.findLessonOrThrow(id);
+    const currentUser =
+      typeof currentUserOrId === 'string' ? undefined : currentUserOrId;
+    const id =
+      typeof currentUserOrId === 'string'
+        ? currentUserOrId
+        : (idOrDto as string);
+    const dto =
+      typeof currentUserOrId === 'string'
+        ? (idOrDto as SubmitLessonFeedbackDto)
+        : maybeDto;
 
-    const lesson = await this.prisma.lesson.update({
-      where: { id },
-      data: {
-        teacherSummary:
-          dto.teacherSummary !== undefined
-            ? dto.teacherSummary.trim() || null
-            : current.teacherSummary,
-        homework:
-          dto.homework !== undefined
-            ? dto.homework.trim() || null
-            : current.homework,
-        outcomeVideoUrl:
-          dto.outcomeVideoUrl !== undefined
-            ? dto.outcomeVideoUrl.trim() || null
-            : current.outcomeVideoUrl,
-        guardianFeedback:
-          dto.guardianFeedback !== undefined
-            ? dto.guardianFeedback.trim() || null
-            : current.guardianFeedback,
-        feedbackSubmittedAt: dto.feedbackSubmittedAt
-          ? this.parseDate(dto.feedbackSubmittedAt, 'feedbackSubmittedAt')
-          : new Date(),
-      },
-      include: this.getLessonInclude(),
+    if (!dto) {
+      throw new BadRequestException('课后反馈参数不能为空');
+    }
+
+    const current = await this.findLessonOrThrow(id);
+    if (currentUser) {
+      this.ensureLessonAccess(currentUser, current);
+    }
+
+    if (currentUser && current.booking.status !== BookingStatus.COMPLETED) {
+      throw new BadRequestException('只有已完课的课程才可以提交课后反馈');
+    }
+
+    const feedbackSubmittedAt = dto.feedbackSubmittedAt
+      ? this.parseDate(dto.feedbackSubmittedAt, 'feedbackSubmittedAt')
+      : new Date();
+
+    if (!currentUser) {
+      const lesson = await this.prisma.lesson.update({
+        where: { id },
+        data: {
+          teacherSummary:
+            dto.teacherSummary !== undefined
+              ? dto.teacherSummary.trim() || null
+              : current.teacherSummary,
+          homework:
+            dto.homework !== undefined
+              ? dto.homework.trim() || null
+              : current.homework,
+          outcomeVideoUrl:
+            dto.outcomeVideoUrl !== undefined
+              ? dto.outcomeVideoUrl.trim() || null
+              : current.outcomeVideoUrl,
+          guardianFeedback:
+            dto.guardianFeedback !== undefined
+              ? dto.guardianFeedback.trim() || null
+              : current.guardianFeedback,
+          feedbackSubmittedAt,
+        },
+        include: this.getLessonInclude(),
+      });
+
+      return this.toResponse(lesson);
+    }
+
+    const lesson = await this.prisma.$transaction(async (tx) => {
+      const updatedLesson = await tx.lesson.update({
+        where: { id },
+        data: {
+          teacherSummary:
+            dto.teacherSummary !== undefined
+              ? dto.teacherSummary.trim() || null
+              : current.teacherSummary,
+          homework:
+            dto.homework !== undefined
+              ? dto.homework.trim() || null
+              : current.homework,
+          outcomeVideoUrl:
+            dto.outcomeVideoUrl !== undefined
+              ? dto.outcomeVideoUrl.trim() || null
+              : current.outcomeVideoUrl,
+          guardianFeedback:
+            dto.guardianFeedback !== undefined
+              ? dto.guardianFeedback.trim() || null
+              : current.guardianFeedback,
+          feedbackSubmittedAt,
+        },
+        include: this.getLessonInclude(),
+      });
+
+      await tx.booking.update({
+        where: { id: current.bookingId },
+        data: {
+          completionStatus: BookingCompletionStatus.PENDING_GUARDIAN_CONFIRM,
+          settlementReadiness: SettlementReadiness.NOT_READY,
+        },
+      });
+
+      return updatedLesson;
     });
 
     return this.toResponse(lesson);
+  }
+
+  async createEvidence(
+    currentUser: AuthenticatedUserContext,
+    id: string,
+    dto: CreateLessonEvidenceDto,
+  ): Promise<LessonResponseDto> {
+    const current = await this.findLessonOrThrow(id);
+    this.ensureLessonAccess(currentUser, current);
+
+    await this.prisma.lessonEvidence.create({
+      data: {
+        lessonId: current.id,
+        type: dto.type,
+        url: dto.url,
+        note: dto.note?.trim() || null,
+        uploadedByUserId: currentUser.userId,
+      },
+    });
+
+    const updated = await this.findLessonOrThrow(id);
+    return this.toResponse(updated);
   }
 
   async remove(id: string): Promise<DeleteLessonResponseDto> {

@@ -190,6 +190,68 @@ export class BookingRescheduleRequestDto {
   createdAt!: Date;
 }
 
+export class BookingExceptionCaseDto {
+  @ApiProperty({ description: '异常工单 ID。', example: 'exc_001' })
+  id!: string;
+
+  @ApiProperty({
+    description: '异常类型。',
+    example: 'OVERDUE_NOT_STARTED',
+  })
+  exceptionType!: string;
+
+  @ApiProperty({ description: '工单状态。', example: 'OPEN' })
+  status!: string;
+
+  @ApiProperty({
+    description: '责任方。',
+    example: 'UNKNOWN',
+  })
+  responsibilityType!: string;
+
+  @ApiProperty({
+    description: '异常摘要。',
+    example: '已过上课开始时间，老师仍未签到。',
+  })
+  summary!: string;
+
+  @ApiProperty({
+    description: '处理结论。',
+    example: '已联系老师补签到，等待家长确认。',
+    nullable: true,
+    required: false,
+  })
+  resolution!: string | null;
+
+  @ApiProperty({
+    description: '创建人用户 ID。',
+    example: 'user_001',
+    nullable: true,
+    required: false,
+  })
+  createdByUserId!: string | null;
+
+  @ApiProperty({
+    description: '结案人用户 ID。',
+    example: 'user_002',
+    nullable: true,
+    required: false,
+  })
+  resolvedByUserId!: string | null;
+
+  @ApiProperty({
+    description: '创建时间。',
+    example: '2026-04-04T10:00:00.000Z',
+  })
+  createdAt!: Date;
+
+  @ApiProperty({
+    description: '更新时间。',
+    example: '2026-04-04T10:05:00.000Z',
+  })
+  updatedAt!: Date;
+}
+
 export class BookingResponseDto {
   @ApiProperty({ description: '预约 ID。', example: 'cmc123booking001' })
   id!: string;
@@ -322,6 +384,32 @@ export class BookingResponseDto {
   paymentDueAt!: Date | null;
 
   @ApiProperty({
+    description: '完课确认状态。',
+    example: 'PENDING_GUARDIAN_CONFIRM',
+  })
+  completionStatus!: string;
+
+  @ApiProperty({
+    description: '完课确认时间。',
+    example: '2026-04-04T12:30:00.000Z',
+    nullable: true,
+    required: false,
+  })
+  completionConfirmedAt!: Date | null;
+
+  @ApiProperty({
+    description: '异常状态。',
+    example: 'NONE',
+  })
+  exceptionStatus!: string;
+
+  @ApiProperty({
+    description: '结算资格状态。',
+    example: 'NOT_READY',
+  })
+  settlementReadiness!: string;
+
+  @ApiProperty({
     description: '课前计划摘要。',
     example: '试听课重点了解孩子基础。',
     nullable: true,
@@ -358,6 +446,13 @@ export class BookingResponseDto {
     isArray: true,
   })
   rescheduleRequests!: BookingRescheduleRequestDto[];
+
+  @ApiProperty({
+    description: '异常工单列表。',
+    type: BookingExceptionCaseDto,
+    isArray: true,
+  })
+  exceptionCases!: BookingExceptionCaseDto[];
 
   @ApiProperty({
     description: '创建时间。',
