@@ -9,6 +9,7 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  ApiExcludeController,
   ApiBody,
   ApiBearerAuth,
   ApiNotFoundResponse,
@@ -24,6 +25,7 @@ import { PlatformRole } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/supabase-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { RequireRoles } from '../auth/require-roles.decorator';
+import { RequireCapability } from '../common/require-capability.decorator';
 import { CreateGuardianDto } from './dto/create-guardian.dto';
 import {
   DeleteGuardianResponseDto,
@@ -36,9 +38,12 @@ import { SetGuardianDefaultAddressDto } from './dto/set-default-address.dto';
 import { UpdateGuardianDto } from './dto/update-guardian.dto';
 import { GuardiansService } from './guardians.service';
 
+// @post-mvp: 后台家长管理保留实现，但 V1 默认关闭。
 @ApiTags('家长管理')
+@ApiExcludeController()
 @ApiBearerAuth('bearer')
 @UseGuards(JwtAuthGuard, RolesGuard)
+@RequireCapability('guardianAdmin')
 @RequireRoles(PlatformRole.ADMIN, PlatformRole.SUPER_ADMIN)
 @Controller('guardians')
 export class GuardiansController {

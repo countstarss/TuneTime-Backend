@@ -10,6 +10,9 @@ describe('TestSupportService', () => {
       findMany: jest.fn(),
       findUnique: jest.fn(),
     },
+    rescheduleRequest: {
+      count: jest.fn(),
+    },
   } as any;
   const bookingsService = {
     updatePayment: jest.fn(),
@@ -25,6 +28,7 @@ describe('TestSupportService', () => {
   beforeEach(() => {
     jest.resetAllMocks();
     process.env.TEST_SUPPORT_ENABLED = 'true';
+    prisma.rescheduleRequest.count.mockResolvedValue(0);
     service = new TestSupportService(prisma, bookingsService, logStore);
   });
 
@@ -100,6 +104,7 @@ describe('TestSupportService', () => {
     });
 
     expect(bookingsService.updatePayment).toHaveBeenCalledWith(
+      undefined,
       'qa_booking_pending_payment',
       { paymentStatus: PaymentStatus.PAID },
     );

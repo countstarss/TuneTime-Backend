@@ -1,5 +1,11 @@
 import { Body, Controller, Get, Post } from '@nestjs/common';
-import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiExcludeController,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
+import { RequireCapability } from '../common/require-capability.decorator';
 import {
   MockPaymentRequestDto,
   ResetQaScenarioRequestDto,
@@ -8,7 +14,10 @@ import {
 } from './dto/test-support.dto';
 import { TestSupportService } from './test-support.service';
 
+// @post-mvp: QA 测试支持保留实现，但 V1 默认关闭。
 @ApiTags('测试支持')
+@ApiExcludeController()
+@RequireCapability('testSupport')
 @Controller('test-support')
 export class TestSupportController {
   constructor(private readonly testSupportService: TestSupportService) {}

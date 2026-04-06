@@ -9,6 +9,7 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  ApiExcludeEndpoint,
   ApiBody,
   ApiNotFoundResponse,
   ApiOkResponse,
@@ -18,6 +19,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { RequireCapability } from '../common/require-capability.decorator';
 import { CreateSubjectDto } from './dto/create-subject.dto';
 import { ListSubjectsQueryDto } from './dto/list-subjects-query.dto';
 import { UpdateSubjectStatusDto } from './dto/update-subject-status.dto';
@@ -34,7 +36,10 @@ import { SubjectsService } from './subjects.service';
 export class SubjectsController {
   constructor(private readonly subjectsService: SubjectsService) {}
 
+  // @post-mvp: 科目后台管理保留实现，但 V1 默认关闭。
   @Post()
+  @RequireCapability('subjectAdmin')
+  @ApiExcludeEndpoint()
   @ApiOperation({
     summary: '创建科目',
     description: '创建新的授课科目，适用于后台初始化课程品类。',
@@ -50,7 +55,10 @@ export class SubjectsController {
     return this.subjectsService.create(dto);
   }
 
+  // @post-mvp: 科目后台管理保留实现，但 V1 默认关闭。
   @Get()
+  @RequireCapability('subjectAdmin')
+  @ApiExcludeEndpoint()
   @ApiOperation({
     summary: '分页查询科目列表',
     description: '支持按关键字、启用状态进行筛选，适合后台管理页使用。',
@@ -67,6 +75,7 @@ export class SubjectsController {
   }
 
   @Get('active')
+  @RequireCapability('subjects')
   @ApiOperation({
     summary: '查询启用中的科目',
     description: '前台选课场景常用接口，只返回当前启用的科目。',
@@ -80,7 +89,10 @@ export class SubjectsController {
     return this.subjectsService.findActive();
   }
 
+  // @post-mvp: 科目后台管理保留实现，但 V1 默认关闭。
   @Get('code/:code')
+  @RequireCapability('subjectAdmin')
+  @ApiExcludeEndpoint()
   @ApiOperation({
     summary: '按科目编码查询',
     description: '后续在配置联动、导入导出、枚举映射时会比较常用。',
@@ -95,7 +107,10 @@ export class SubjectsController {
     return this.subjectsService.findByCode(code);
   }
 
+  // @post-mvp: 科目后台管理保留实现，但 V1 默认关闭。
   @Get(':id')
+  @RequireCapability('subjectAdmin')
+  @ApiExcludeEndpoint()
   @ApiOperation({
     summary: '查询科目详情',
     description: '根据科目 ID 获取详情。',
@@ -110,7 +125,10 @@ export class SubjectsController {
     return this.subjectsService.findOne(id);
   }
 
+  // @post-mvp: 科目后台管理保留实现，但 V1 默认关闭。
   @Patch(':id')
+  @RequireCapability('subjectAdmin')
+  @ApiExcludeEndpoint()
   @ApiOperation({
     summary: '更新科目',
     description: '更新科目名称、编码、描述或启用状态。',
@@ -130,7 +148,10 @@ export class SubjectsController {
     return this.subjectsService.update(id, dto);
   }
 
+  // @post-mvp: 科目后台管理保留实现，但 V1 默认关闭。
   @Patch(':id/status')
+  @RequireCapability('subjectAdmin')
+  @ApiExcludeEndpoint()
   @ApiOperation({
     summary: '切换科目启用状态',
     description: '用于后台快速启用或停用科目，而不修改其他字段。',
@@ -149,7 +170,10 @@ export class SubjectsController {
     return this.subjectsService.updateStatus(id, dto);
   }
 
+  // @post-mvp: 科目后台管理保留实现，但 V1 默认关闭。
   @Delete(':id')
+  @RequireCapability('subjectAdmin')
+  @ApiExcludeEndpoint()
   @ApiOperation({
     summary: '删除科目',
     description: '仅当科目未被老师资料或订单引用时可删除，否则建议改为停用。',

@@ -10,6 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
+  ApiExcludeController,
   ApiBearerAuth,
   ApiBody,
   ApiNotFoundResponse,
@@ -23,6 +24,7 @@ import {
 import { PlatformRole } from '@prisma/client';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { AuthenticatedUserContext } from '../auth/auth.types';
+import { RequireCapability } from '../common/require-capability.decorator';
 import { RequireRoles } from '../auth/require-roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { JwtAuthGuard } from '../auth/supabase-auth.guard';
@@ -37,9 +39,12 @@ import {
 import { UpdateTeacherReviewDto } from './dto/update-teacher-review.dto';
 import { TeacherReviewsService } from './teacher-reviews.service';
 
+// @post-mvp: 课后评价保留实现，但 V1 默认关闭。
 @ApiTags('老师评价')
+@ApiExcludeController()
 @ApiBearerAuth('bearer')
 @UseGuards(JwtAuthGuard, RolesGuard)
+@RequireCapability('teacherReviews')
 @Controller('teacher-reviews')
 export class TeacherReviewsController {
   constructor(private readonly teacherReviewsService: TeacherReviewsService) {}

@@ -10,6 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
+  ApiExcludeController,
   ApiBearerAuth,
   ApiBody,
   ApiNotFoundResponse,
@@ -23,6 +24,7 @@ import {
 import { PlatformRole } from '@prisma/client';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { AuthenticatedUserContext } from '../auth/auth.types';
+import { RequireCapability } from '../common/require-capability.decorator';
 import { RequireRoles } from '../auth/require-roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { JwtAuthGuard } from '../auth/supabase-auth.guard';
@@ -41,9 +43,12 @@ import { UpdateLessonAttendanceDto } from './dto/update-lesson-attendance.dto';
 import { UpdateLessonDto } from './dto/update-lesson.dto';
 import { LessonsService } from './lessons.service';
 
+// @post-mvp: 课程履约域保留实现，但 V1 默认关闭。
 @ApiTags('课程履约')
+@ApiExcludeController()
 @ApiBearerAuth('bearer')
 @UseGuards(JwtAuthGuard, RolesGuard)
+@RequireCapability('lessons')
 @Controller('lessons')
 export class LessonsController {
   constructor(private readonly lessonsService: LessonsService) {}

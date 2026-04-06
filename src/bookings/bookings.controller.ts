@@ -10,6 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
+  ApiExcludeEndpoint,
   ApiBearerAuth,
   ApiBody,
   ApiNotFoundResponse,
@@ -23,6 +24,7 @@ import {
 import { PlatformRole } from '@prisma/client';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { AuthenticatedUserContext } from '../auth/auth.types';
+import { RequireCapability } from '../common/require-capability.decorator';
 import { RequireRoles } from '../auth/require-roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { JwtAuthGuard } from '../auth/supabase-auth.guard';
@@ -59,6 +61,7 @@ export class BookingsController {
 
   @Post('/from-hold')
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireCapability('bookingCreate')
   @RequireRoles(PlatformRole.GUARDIAN)
   @ApiBearerAuth('bearer')
   @ApiOperation({
@@ -76,6 +79,7 @@ export class BookingsController {
 
   @Post('/holds')
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireCapability('bookingHold')
   @RequireRoles(PlatformRole.GUARDIAN)
   @ApiBearerAuth('bearer')
   @ApiOperation({
@@ -91,9 +95,12 @@ export class BookingsController {
     return this.bookingsService.createHold(currentUser, dto);
   }
 
+  // @post-mvp: 后台订单管理保留实现，但 V1 默认关闭。
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireCapability('bookingAdmin')
   @RequireRoles(PlatformRole.ADMIN, PlatformRole.SUPER_ADMIN)
+  @ApiExcludeEndpoint()
   @ApiBearerAuth('bearer')
   @ApiOperation({
     summary: '创建预约',
@@ -114,9 +121,12 @@ export class BookingsController {
     return this.bookingsService.create(dto);
   }
 
+  // @post-mvp: 后台订单管理保留实现，但 V1 默认关闭。
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireCapability('bookingAdmin')
   @RequireRoles(PlatformRole.ADMIN, PlatformRole.SUPER_ADMIN)
+  @ApiExcludeEndpoint()
   @ApiBearerAuth('bearer')
   @ApiOperation({
     summary: '分页查询预约列表',
@@ -135,6 +145,7 @@ export class BookingsController {
 
   @Get('mine')
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireCapability('bookingMine')
   @RequireRoles(PlatformRole.GUARDIAN)
   @ApiBearerAuth('bearer')
   @ApiOperation({
@@ -152,6 +163,7 @@ export class BookingsController {
 
   @Get('mine/:id')
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireCapability('bookingMine')
   @RequireRoles(PlatformRole.GUARDIAN)
   @ApiBearerAuth('bearer')
   @ApiOperation({
@@ -166,9 +178,12 @@ export class BookingsController {
     return this.bookingsService.findMineOne(currentUser, id);
   }
 
+  // @post-mvp: 后台订单管理保留实现，但 V1 默认关闭。
   @Get('booking-no/:bookingNo')
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireCapability('bookingAdmin')
   @RequireRoles(PlatformRole.ADMIN, PlatformRole.SUPER_ADMIN)
+  @ApiExcludeEndpoint()
   @ApiBearerAuth('bearer')
   @ApiOperation({
     summary: '按预约单号查询详情',
@@ -188,6 +203,7 @@ export class BookingsController {
 
   @Get(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireCapability('bookingMine')
   @RequireRoles(
     PlatformRole.TEACHER,
     PlatformRole.GUARDIAN,
@@ -212,9 +228,12 @@ export class BookingsController {
     return this.bookingsService.findOne(currentUser, id);
   }
 
+  // @post-mvp: 后台订单管理保留实现，但 V1 默认关闭。
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireCapability('bookingAdmin')
   @RequireRoles(PlatformRole.ADMIN, PlatformRole.SUPER_ADMIN)
+  @ApiExcludeEndpoint()
   @ApiBearerAuth('bearer')
   @ApiOperation({
     summary: '更新预约',
@@ -233,9 +252,12 @@ export class BookingsController {
     return this.bookingsService.update(id, dto);
   }
 
+  // @post-mvp: 老师拒单/统一响应在 V1 默认关闭，仅保留 accept。
   @Patch(':id/respond')
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireCapability('teacherRespond')
   @RequireRoles(PlatformRole.TEACHER)
+  @ApiExcludeEndpoint()
   @ApiBearerAuth('bearer')
   @ApiOperation({
     summary: '老师统一响应预约',
@@ -253,6 +275,7 @@ export class BookingsController {
 
   @Patch(':id/accept')
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireCapability('teacherAccept')
   @RequireRoles(PlatformRole.TEACHER)
   @ApiBearerAuth('bearer')
   @ApiOperation({
@@ -273,9 +296,12 @@ export class BookingsController {
     return this.bookingsService.accept(currentUser, id, dto);
   }
 
+  // @post-mvp: 家长确认课前安排在 V1 默认关闭。
   @Patch(':id/guardian-confirm')
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireCapability('guardianConfirm')
   @RequireRoles(PlatformRole.GUARDIAN)
+  @ApiExcludeEndpoint()
   @ApiBearerAuth('bearer')
   @ApiOperation({
     summary: '家长确认预约',
@@ -295,13 +321,16 @@ export class BookingsController {
     return this.bookingsService.guardianConfirm(currentUser, id, dto);
   }
 
+  // @post-mvp: 支付推进在 V1 默认关闭。
   @Patch(':id/payment')
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireCapability('payment')
   @RequireRoles(
     PlatformRole.GUARDIAN,
     PlatformRole.ADMIN,
     PlatformRole.SUPER_ADMIN,
   )
+  @ApiExcludeEndpoint()
   @ApiBearerAuth('bearer')
   @ApiOperation({
     summary: '更新预约支付状态',
@@ -322,9 +351,12 @@ export class BookingsController {
     return this.bookingsService.updatePayment(currentUser, id, dto);
   }
 
+  // @post-mvp: 取消订单在 V1 默认关闭。
   @Patch(':id/cancel')
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireCapability('cancelBooking')
   @RequireRoles(PlatformRole.GUARDIAN, PlatformRole.TEACHER)
+  @ApiExcludeEndpoint()
   @ApiBearerAuth('bearer')
   @ApiOperation({
     summary: '取消预约',
@@ -344,9 +376,12 @@ export class BookingsController {
     return this.bookingsService.cancel(id, dto, currentUser);
   }
 
+  // @post-mvp: 改约在 V1 默认关闭。
   @Post(':id/reschedule')
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireCapability('reschedule')
   @RequireRoles(PlatformRole.GUARDIAN, PlatformRole.TEACHER)
+  @ApiExcludeEndpoint()
   @ApiBearerAuth('bearer')
   @ApiOperation({
     summary: '发起改约请求',
@@ -362,9 +397,12 @@ export class BookingsController {
     return this.bookingsService.createRescheduleRequest(currentUser, id, dto);
   }
 
+  // @post-mvp: 改约在 V1 默认关闭。
   @Patch(':id/reschedule/:requestId/respond')
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireCapability('reschedule')
   @RequireRoles(PlatformRole.GUARDIAN, PlatformRole.TEACHER)
+  @ApiExcludeEndpoint()
   @ApiBearerAuth('bearer')
   @ApiOperation({
     summary: '响应改约请求',
@@ -386,13 +424,16 @@ export class BookingsController {
     );
   }
 
+  // @post-mvp: 到达确认在 V1 默认关闭。
   @Post(':id/arrival')
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireCapability('arrival')
   @RequireRoles(
     PlatformRole.TEACHER,
     PlatformRole.ADMIN,
     PlatformRole.SUPER_ADMIN,
   )
+  @ApiExcludeEndpoint()
   @ApiBearerAuth('bearer')
   @ApiOperation({
     summary: '老师确认到达',
@@ -409,13 +450,16 @@ export class BookingsController {
     return this.bookingsService.confirmArrival(currentUser, id, dto);
   }
 
+  // @post-mvp: 完课确认在 V1 默认关闭。
   @Post(':id/complete-confirm')
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireCapability('completionConfirm')
   @RequireRoles(
     PlatformRole.GUARDIAN,
     PlatformRole.ADMIN,
     PlatformRole.SUPER_ADMIN,
   )
+  @ApiExcludeEndpoint()
   @ApiBearerAuth('bearer')
   @ApiOperation({
     summary: '家长确认完课',
@@ -431,13 +475,16 @@ export class BookingsController {
     return this.bookingsService.confirmCompletion(currentUser, id, dto);
   }
 
+  // @post-mvp: 争议处理在 V1 默认关闭。
   @Post(':id/disputes')
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireCapability('dispute')
   @RequireRoles(
     PlatformRole.GUARDIAN,
     PlatformRole.ADMIN,
     PlatformRole.SUPER_ADMIN,
   )
+  @ApiExcludeEndpoint()
   @ApiBearerAuth('bearer')
   @ApiOperation({
     summary: '发起订单争议',
@@ -453,9 +500,12 @@ export class BookingsController {
     return this.bookingsService.createDispute(currentUser, id, dto);
   }
 
+  // @post-mvp: 争议处理在 V1 默认关闭。
   @Post(':id/disputes/:caseId/resolve')
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireCapability('dispute')
   @RequireRoles(PlatformRole.ADMIN, PlatformRole.SUPER_ADMIN)
+  @ApiExcludeEndpoint()
   @ApiBearerAuth('bearer')
   @ApiOperation({
     summary: '处理订单争议',
@@ -472,9 +522,12 @@ export class BookingsController {
     return this.bookingsService.resolveDispute(currentUser, id, caseId, dto);
   }
 
+  // @post-mvp: 人工修复在 V1 默认关闭。
   @Post(':id/ops/manual-repair')
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireCapability('manualRepair')
   @RequireRoles(PlatformRole.ADMIN, PlatformRole.SUPER_ADMIN)
+  @ApiExcludeEndpoint()
   @ApiBearerAuth('bearer')
   @ApiOperation({
     summary: '后台人工修复订单',
@@ -491,9 +544,12 @@ export class BookingsController {
     return this.bookingsService.manualRepair(currentUser, id, dto);
   }
 
+  // @post-mvp: 后台订单管理保留实现，但 V1 默认关闭。
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireCapability('bookingAdmin')
   @RequireRoles(PlatformRole.ADMIN, PlatformRole.SUPER_ADMIN)
+  @ApiExcludeEndpoint()
   @ApiBearerAuth('bearer')
   @ApiOperation({
     summary: '删除预约',

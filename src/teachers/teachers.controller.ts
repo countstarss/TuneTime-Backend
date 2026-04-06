@@ -10,6 +10,7 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  ApiExcludeController,
   ApiBody,
   ApiBearerAuth,
   ApiNotFoundResponse,
@@ -25,6 +26,7 @@ import { PlatformRole } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/supabase-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { RequireRoles } from '../auth/require-roles.decorator';
+import { RequireCapability } from '../common/require-capability.decorator';
 import { CreateTeacherDto } from './dto/create-teacher.dto';
 import { ListTeachersQueryDto } from './dto/list-teachers-query.dto';
 import {
@@ -42,9 +44,12 @@ import { UpdateTeacherDto } from './dto/update-teacher.dto';
 import { UpdateTeacherVerificationDto } from './dto/update-teacher-verification.dto';
 import { TeachersService } from './teachers.service';
 
+// @post-mvp: 后台老师管理保留实现，但 V1 默认关闭。
 @ApiTags('老师管理')
+@ApiExcludeController()
 @ApiBearerAuth('bearer')
 @UseGuards(JwtAuthGuard, RolesGuard)
+@RequireCapability('teacherAdmin')
 @RequireRoles(PlatformRole.ADMIN, PlatformRole.SUPER_ADMIN)
 @Controller('teachers')
 export class TeachersController {

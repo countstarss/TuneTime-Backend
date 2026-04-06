@@ -233,6 +233,63 @@ export class DiscoverTeacherDto {
   previewWindows!: AvailabilityWindowDto[];
 }
 
+export class TeacherPublicProfileDto {
+  @ApiProperty({ example: 'teacher_001' })
+  id!: string;
+
+  @ApiProperty({ example: 'user_teacher_001' })
+  userId!: string;
+
+  @ApiProperty({ example: '李老师' })
+  displayName!: string;
+
+  @ApiPropertyOptional({ example: '10 年钢琴启蒙经验。', nullable: true })
+  bio!: string | null;
+
+  @ApiProperty({ example: 200 })
+  baseHourlyRate!: number;
+
+  @ApiPropertyOptional({ example: '南开区', nullable: true })
+  district!: string | null;
+
+  @ApiProperty({ example: 4.8 })
+  ratingAvg!: number;
+
+  @ApiProperty({ example: 12 })
+  ratingCount!: number;
+
+  @ApiProperty({ example: 5 })
+  experienceYears!: number;
+
+  @ApiProperty({ example: 'APPROVED' })
+  verificationStatus!: string;
+
+  @ApiProperty({ example: 'PART_TIME' })
+  employmentType!: string;
+
+  @ApiProperty({ example: '2026-03-15T00:00:00.000Z' })
+  createdAt!: Date;
+
+  @ApiProperty({ example: '2026-03-21T00:00:00.000Z' })
+  updatedAt!: Date;
+
+  @ApiProperty({ type: String, isArray: true, example: ['钢琴', '乐理'] })
+  subjects!: string[];
+
+  @ApiProperty({
+    type: String,
+    isArray: true,
+    example: ['subject_piano', 'subject_theory'],
+  })
+  subjectIds!: string[];
+
+  @ApiPropertyOptional({ example: 'subject_piano', nullable: true })
+  primarySubjectId!: string | null;
+
+  @ApiProperty({ type: String, isArray: true, example: ['教师资格证'] })
+  credentials!: string[];
+}
+
 export class DiscoverTeachersResponseDto {
   @ApiProperty({ type: DiscoverTeacherDto, isArray: true })
   items!: DiscoverTeacherDto[];

@@ -11,9 +11,14 @@ import {
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiExcludeController,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/supabase-auth.guard';
+import { RequireCapability } from '../common/require-capability.decorator';
 import { CrmAccessGuard } from './crm-access.guard';
 import { CrmAiService } from './crm-ai.service';
 import { CrmService } from './crm.service';
@@ -40,9 +45,12 @@ import { CreateCrmTaskDto, UpdateCrmTaskDto } from './dto/crm-task.dto';
 
 type RequestWithUser = Request & { user?: { sub?: string } };
 
+// @post-mvp: CRM 保留实现，但 V1 默认关闭。
 @ApiTags('CRM')
+@ApiExcludeController()
 @ApiBearerAuth('bearer')
 @UseGuards(JwtAuthGuard, CrmAccessGuard)
+@RequireCapability('crm')
 @Controller('crm')
 export class CrmController {
   constructor(

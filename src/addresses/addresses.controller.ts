@@ -9,6 +9,7 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  ApiExcludeController,
   ApiBody,
   ApiNotFoundResponse,
   ApiOkResponse,
@@ -18,6 +19,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { RequireCapability } from '../common/require-capability.decorator';
 import { AddressesService } from './addresses.service';
 import { CreateAddressDto } from './dto/create-address.dto';
 import {
@@ -29,7 +31,10 @@ import { ListAddressesQueryDto } from './dto/list-addresses-query.dto';
 import { SetDefaultAddressDto } from './dto/set-default-address.dto';
 import { UpdateAddressDto } from './dto/update-address.dto';
 
+// @post-mvp: 后台地址管理保留实现，但 V1 默认关闭。
 @ApiTags('地址管理')
+@ApiExcludeController()
+@RequireCapability('addressAdmin')
 @Controller('addresses')
 export class AddressesController {
   constructor(private readonly addressesService: AddressesService) {}

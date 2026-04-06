@@ -26,6 +26,7 @@ import {
   SearchTeacherAvailabilityDto,
   SearchTeacherAvailabilityResponseDto,
   TeacherAvailabilityConfigResponseDto,
+  TeacherPublicProfileDto,
 } from './dto/teacher-availability.dto';
 
 type AvailabilityRuleRecord = {
@@ -614,10 +615,77 @@ export class TeacherAvailabilityService {
     })) as TeacherSearchRecord[];
   }
 
+  private async loadDiscoverableTeacherSearchRecordById(
+    teacherProfileId: string,
+  ): Promise<TeacherSearchRecord> {
+    const teacher = (await this.prisma.teacherProfile.findFirst({
+      where: {
+        id: teacherProfileId,
+        ...(this.devMvpRelaxationEnabled
+          ? {
+              onboardingCompletedAt: { not: null },
+            }
+          : {
+              verificationStatus: TeacherVerificationStatus.APPROVED,
+            }),
+        subjects: {
+          some: {
+            isActive: true,
+          },
+        },
+      },
+      select: {
+        id: true,
+        userId: true,
+        displayName: true,
+        bio: true,
+        employmentType: true,
+        verificationStatus: true,
+        baseHourlyRate: true,
+        ratingAvg: true,
+        ratingCount: true,
+        createdAt: true,
+        updatedAt: true,
+        subjects: {
+          where: { isActive: true },
+          select: {
+            experienceYears: true,
+            isActive: true,
+            subject: {
+              select: {
+                id: true,
+                code: true,
+                name: true,
+              },
+            },
+          },
+        },
+        credentials: {
+          select: {
+            name: true,
+          },
+          orderBy: { createdAt: 'asc' },
+        },
+        serviceAreas: {
+          select: { district: true },
+          orderBy: { createdAt: 'asc' },
+          take: 1,
+        },
+      },
+    })) as TeacherSearchRecord | null;
+
+    if (!teacher) {
+      throw new NotFoundException(`未找到可展示的老师档案：${teacherProfileId}`);
+    }
+
+    return teacher;
+  }
+
   private toTeacherSummary(
     teacher: TeacherSearchRecord,
   ): Omit<DiscoverTeacherDto, 'previewWindows'> &
-    Omit<SearchAvailabilityTeacherDto, 'matchingWindows'> {
+    Omit<SearchAvailabilityTeacherDto, 'matchingWindows'> &
+    TeacherPublicProfileDto {
     return {
       id: teacher.id,
       userId: teacher.userId,
@@ -660,6 +728,15 @@ export class TeacherAvailabilityService {
         to,
       ),
     };
+  }
+
+  async getTeacherPublicProfile(
+    teacherProfileId: string,
+  ): Promise<TeacherPublicProfileDto> {
+    const teacher =
+      await this.loadDiscoverableTeacherSearchRecordById(teacherProfileId);
+
+    return this.toTeacherSummary(teacher);
   }
 
   async hasSellableWindow(

@@ -14,6 +14,7 @@ import { RequireRoles } from '../auth/require-roles.decorator';
 import { AuthenticatedUserContext } from '../auth/auth.types';
 import { RolesGuard } from '../auth/roles.guard';
 import { JwtAuthGuard } from '../auth/supabase-auth.guard';
+import { RequireCapability } from '../common/require-capability.decorator';
 import { ListTeacherPendingBookingsQueryDto } from './dto/list-teacher-pending-bookings-query.dto';
 import {
   TeacherWorkbenchBookingDetailDto,
@@ -25,6 +26,7 @@ import { TeacherWorkbenchService } from './teacher-workbench.service';
 @ApiBearerAuth('bearer')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @RequireRoles(PlatformRole.TEACHER)
+@RequireCapability('teacherWorkbench')
 @Controller('teacher-workbench')
 export class TeacherWorkbenchController {
   constructor(

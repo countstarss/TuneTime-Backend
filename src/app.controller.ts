@@ -1,5 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { AppService } from './app.service';
+import { getMvpCapabilities } from './common/mvp-capabilities';
 
 @Controller()
 export class AppController {
@@ -12,16 +13,6 @@ export class AppController {
 
   @Get('system/capabilities')
   getSystemCapabilities() {
-    return {
-      bookingContext: true,
-      bookingHold: true,
-      calendar: true,
-      reschedule: true,
-      lessonEvidence: true,
-      completionConfirm: true,
-      dispute: true,
-      manualRepair: true,
-      lifecycleAutomation: true,
-    };
+    return getMvpCapabilities();
   }
 }

@@ -15,6 +15,7 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
+import { isMvpCapabilityEnabled } from '../common/mvp-capabilities';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -36,6 +37,7 @@ export class BookingLifecycleAutomationService
   onModuleInit() {
     if (
       process.env.NODE_ENV === 'test' ||
+      !isMvpCapabilityEnabled('lifecycleAutomation') ||
       process.env.BOOKING_LIFECYCLE_AUTOMATION_ENABLED === 'false'
     ) {
       return;
