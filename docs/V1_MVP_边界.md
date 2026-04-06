@@ -11,14 +11,21 @@ V1 只保留下面这条链路：
 ```text
 短信验证码登录
 -> 老师 / 家长 onboarding
--> 定向老师详情
+-> 老师列表 / 搜索 / 定向老师详情
 -> 创建 booking hold
 -> 从 hold 创建 booking
 -> 老师在工作台接单
 -> 家长查看订单结果
 ```
 
-只要这条链路能稳定跑通，V1 就算成立。
+在这条最小交易闭环之外，当前 V1 额外补充了一组“可用性增强”能力：
+
+- 老师列表与按时间/科目搜索
+- 老师自助排班管理
+- 老师/家长独立资料编辑
+- 家长多孩子、多地址自助管理
+
+它们不改变主交易链路，但能显著降低前端和真实用户的绕路成本。
 
 ## 2. V1 默认开放能力
 
@@ -39,6 +46,11 @@ V1 只保留下面这条链路：
 - `bookingMine`
 - `teacherWorkbench`
 - `teacherAccept`
+- `teacherDiscover`
+- `teacherSearch`
+- `teacherAvailabilityManage`
+- `teacherProfileManage`
+- `guardianProfileManage`
 
 对应主接口：
 
@@ -48,9 +60,25 @@ V1 只保留下面这条链路：
 - `GET /auth/self/booking-context`
 - `PATCH /auth/self/teacher-onboarding`
 - `PATCH /auth/self/guardian-onboarding`
+- `PATCH /auth/self/teacher-profile`
+- `PATCH /auth/self/guardian-profile`
+- `GET /auth/self/guardian/students`
+- `POST /auth/self/guardian/students`
+- `PATCH /auth/self/guardian/students/:studentId`
+- `GET /auth/self/guardian/addresses`
+- `POST /auth/self/guardian/addresses`
+- `PATCH /auth/self/guardian/addresses/:addressId`
 - `GET /subjects/active`
+- `GET /teacher-availability/discover/teachers`
+- `POST /teacher-availability/search`
 - `GET /teacher-availability/teachers/:teacherProfileId/summary`
 - `GET /teacher-availability/teachers/:teacherProfileId/windows`
+- `GET /teacher-availability/self/config`
+- `PATCH /teacher-availability/self/weekly-rules`
+- `POST /teacher-availability/self/blocks`
+- `DELETE /teacher-availability/self/blocks/:blockId`
+- `POST /teacher-availability/self/extra-slots`
+- `DELETE /teacher-availability/self/extra-slots/:ruleId`
 - `POST /bookings/holds`
 - `POST /bookings/from-hold`
 - `GET /bookings/mine`
@@ -74,12 +102,7 @@ V1 只保留下面这条链路：
   - `passwordReset`
   - `realNameVerification`
   - `studentRole`
-  - `teacherProfileManage`
-  - `guardianProfileManage`
 - 供给扩展：
-  - `teacherDiscover`
-  - `teacherSearch`
-  - `teacherAvailabilityManage`
   - `teacherAdmin`
   - `guardianAdmin`
   - `studentAdmin`

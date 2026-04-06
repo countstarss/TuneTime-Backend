@@ -169,12 +169,11 @@ export class AuthController {
     return this.authService.getSelfBookingContext(currentUser.userId);
   }
 
-  // @post-mvp: 家长多孩子管理保留实现，但 V1 默认关闭。
+  // V1 usability supplement: 家长多孩子管理默认开放。
   @UseGuards(JwtAuthGuard, RolesGuard)
   @RequireCapability('guardianProfileManage')
   @RequireRoles(PlatformRole.GUARDIAN)
   @Get('self/guardian/students')
-  @ApiExcludeEndpoint()
   @ApiBearerAuth('bearer')
   @ApiOperation({ summary: '获取当前家长名下的孩子资料列表' })
   @ApiOkResponse({ type: StudentResponseDto, isArray: true })
@@ -184,12 +183,11 @@ export class AuthController {
     return this.authService.listSelfGuardianStudents(currentUser.userId);
   }
 
-  // @post-mvp: 家长多孩子管理保留实现，但 V1 默认关闭。
+  // V1 usability supplement: 家长多孩子管理默认开放。
   @UseGuards(JwtAuthGuard, RolesGuard)
   @RequireCapability('guardianProfileManage')
   @RequireRoles(PlatformRole.GUARDIAN)
   @Post('self/guardian/students')
-  @ApiExcludeEndpoint()
   @ApiBearerAuth('bearer')
   @ApiOperation({ summary: '为当前家长新增孩子资料' })
   @ApiOkResponse({ type: StudentResponseDto })
@@ -200,12 +198,11 @@ export class AuthController {
     return this.authService.createSelfGuardianStudent(currentUser.userId, dto);
   }
 
-  // @post-mvp: 家长多孩子管理保留实现，但 V1 默认关闭。
+  // V1 usability supplement: 家长多孩子管理默认开放。
   @UseGuards(JwtAuthGuard, RolesGuard)
   @RequireCapability('guardianProfileManage')
   @RequireRoles(PlatformRole.GUARDIAN)
   @Patch('self/guardian/students/:studentId')
-  @ApiExcludeEndpoint()
   @ApiBearerAuth('bearer')
   @ApiOperation({ summary: '更新当前家长名下的孩子资料' })
   @ApiOkResponse({ type: StudentResponseDto })
@@ -221,12 +218,11 @@ export class AuthController {
     );
   }
 
-  // @post-mvp: 家长多地址管理保留实现，但 V1 默认关闭。
+  // V1 usability supplement: 家长多地址管理默认开放。
   @UseGuards(JwtAuthGuard, RolesGuard)
   @RequireCapability('guardianProfileManage')
   @RequireRoles(PlatformRole.GUARDIAN)
   @Get('self/guardian/addresses')
-  @ApiExcludeEndpoint()
   @ApiBearerAuth('bearer')
   @ApiOperation({ summary: '获取当前家长的地址列表' })
   @ApiOkResponse({ type: AddressResponseDto, isArray: true })
@@ -236,12 +232,11 @@ export class AuthController {
     return this.authService.listSelfGuardianAddresses(currentUser.userId);
   }
 
-  // @post-mvp: 家长多地址管理保留实现，但 V1 默认关闭。
+  // V1 usability supplement: 家长多地址管理默认开放。
   @UseGuards(JwtAuthGuard, RolesGuard)
   @RequireCapability('guardianProfileManage')
   @RequireRoles(PlatformRole.GUARDIAN)
   @Post('self/guardian/addresses')
-  @ApiExcludeEndpoint()
   @ApiBearerAuth('bearer')
   @ApiOperation({ summary: '为当前家长新增上课地址' })
   @ApiOkResponse({ type: AddressResponseDto })
@@ -252,12 +247,11 @@ export class AuthController {
     return this.authService.createSelfGuardianAddress(currentUser.userId, dto);
   }
 
-  // @post-mvp: 家长多地址管理保留实现，但 V1 默认关闭。
+  // V1 usability supplement: 家长多地址管理默认开放。
   @UseGuards(JwtAuthGuard, RolesGuard)
   @RequireCapability('guardianProfileManage')
   @RequireRoles(PlatformRole.GUARDIAN)
   @Patch('self/guardian/addresses/:addressId')
-  @ApiExcludeEndpoint()
   @ApiBearerAuth('bearer')
   @ApiOperation({ summary: '更新当前家长的上课地址' })
   @ApiOkResponse({ type: AddressResponseDto })
@@ -414,12 +408,11 @@ export class AuthController {
     );
   }
 
-  // @post-mvp: 老师资料单独编辑页保留实现，但 V1 默认关闭。
+  // V1 usability supplement: 老师资料单独编辑默认开放。
   @UseGuards(JwtAuthGuard, RolesGuard)
   @RequireCapability('teacherProfileManage')
   @RequireRoles(PlatformRole.TEACHER)
   @Patch('self/teacher-profile')
-  @ApiExcludeEndpoint()
   @ApiBearerAuth('bearer')
   @ApiOperation({ summary: '老师自助更新个人档案' })
   @ApiOkResponse({ type: AuthResponseDto })
@@ -444,12 +437,11 @@ export class AuthController {
     return this.authService.updateSelfTeacherOnboarding(currentUser.userId, dto);
   }
 
-  // @post-mvp: 家长资料单独编辑页保留实现，但 V1 默认关闭。
+  // V1 usability supplement: 家长资料单独编辑默认开放。
   @UseGuards(JwtAuthGuard, RolesGuard)
   @RequireCapability('guardianProfileManage')
   @RequireRoles(PlatformRole.GUARDIAN)
   @Patch('self/guardian-profile')
-  @ApiExcludeEndpoint()
   @ApiBearerAuth('bearer')
   @ApiOperation({ summary: '家长自助更新个人档案' })
   @ApiOkResponse({ type: AuthResponseDto })

@@ -10,7 +10,6 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
-  ApiExcludeEndpoint,
   ApiBearerAuth,
   ApiOkResponse,
   ApiOperation,
@@ -76,10 +75,9 @@ export class TeacherAvailabilityController {
     );
   }
 
-  // @post-mvp: 发现页老师目录保留实现，但 V1 默认关闭。
+  // V1 usability supplement: 发现页老师目录默认开放。
   @Get('discover/teachers')
   @RequireCapability('teacherDiscover')
-  @ApiExcludeEndpoint()
   @ApiOperation({ summary: '发现页读取真实老师列表及预览可约时段' })
   @ApiQuery({ type: DiscoverTeachersQueryDto })
   @ApiOkResponse({ type: DiscoverTeachersResponseDto })
@@ -89,10 +87,9 @@ export class TeacherAvailabilityController {
     return this.teacherAvailabilityService.listDiscoverTeachers(query);
   }
 
-  // @post-mvp: 按条件搜索老师保留实现，但 V1 默认关闭。
+  // V1 usability supplement: 老师搜索默认开放。
   @Post('search')
   @RequireCapability('teacherSearch')
-  @ApiExcludeEndpoint()
   @ApiOperation({ summary: '按日期时间与科目搜索可接单老师' })
   @ApiOkResponse({ type: SearchTeacherAvailabilityResponseDto })
   searchTeachersByAvailability(
@@ -101,12 +98,11 @@ export class TeacherAvailabilityController {
     return this.teacherAvailabilityService.searchTeachersByAvailability(dto);
   }
 
-  // @post-mvp: 老师自助排班管理在 V1 默认关闭。
+  // V1 usability supplement: 老师自助排班管理默认开放。
   @Get('self/config')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @RequireCapability('teacherAvailabilityManage')
   @RequireRoles(PlatformRole.TEACHER)
-  @ApiExcludeEndpoint()
   @ApiBearerAuth('bearer')
   @ApiOperation({ summary: '读取老师自己的排班配置' })
   @ApiOkResponse({ type: TeacherAvailabilityConfigResponseDto })
@@ -116,12 +112,11 @@ export class TeacherAvailabilityController {
     return this.teacherAvailabilityService.getSelfAvailabilityConfig(currentUser);
   }
 
-  // @post-mvp: 老师自助排班管理在 V1 默认关闭。
+  // V1 usability supplement: 老师自助排班管理默认开放。
   @Patch('self/weekly-rules')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @RequireCapability('teacherAvailabilityManage')
   @RequireRoles(PlatformRole.TEACHER)
-  @ApiExcludeEndpoint()
   @ApiBearerAuth('bearer')
   @ApiOperation({ summary: '整体替换老师自己的周模板' })
   @ApiOkResponse({ type: TeacherAvailabilityConfigResponseDto })
@@ -135,12 +130,11 @@ export class TeacherAvailabilityController {
     );
   }
 
-  // @post-mvp: 老师自助排班管理在 V1 默认关闭。
+  // V1 usability supplement: 老师自助排班管理默认开放。
   @Post('self/blocks')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @RequireCapability('teacherAvailabilityManage')
   @RequireRoles(PlatformRole.TEACHER)
-  @ApiExcludeEndpoint()
   @ApiBearerAuth('bearer')
   @ApiOperation({ summary: '老师新增不可约封锁时段' })
   @ApiOkResponse({ type: TeacherAvailabilityConfigResponseDto })
@@ -154,12 +148,11 @@ export class TeacherAvailabilityController {
     );
   }
 
-  // @post-mvp: 老师自助排班管理在 V1 默认关闭。
+  // V1 usability supplement: 老师自助排班管理默认开放。
   @Delete('self/blocks/:blockId')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @RequireCapability('teacherAvailabilityManage')
   @RequireRoles(PlatformRole.TEACHER)
-  @ApiExcludeEndpoint()
   @ApiBearerAuth('bearer')
   @ApiOperation({ summary: '老师删除不可约封锁时段' })
   @ApiOkResponse({ type: TeacherAvailabilityConfigResponseDto })
@@ -173,12 +166,11 @@ export class TeacherAvailabilityController {
     );
   }
 
-  // @post-mvp: 老师自助排班管理在 V1 默认关闭。
+  // V1 usability supplement: 老师自助排班管理默认开放。
   @Post('self/extra-slots')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @RequireCapability('teacherAvailabilityManage')
   @RequireRoles(PlatformRole.TEACHER)
-  @ApiExcludeEndpoint()
   @ApiBearerAuth('bearer')
   @ApiOperation({ summary: '老师新增单日临时开放时段' })
   @ApiOkResponse({ type: TeacherAvailabilityConfigResponseDto })
@@ -189,12 +181,11 @@ export class TeacherAvailabilityController {
     return this.teacherAvailabilityService.createSelfExtraSlot(currentUser, dto);
   }
 
-  // @post-mvp: 老师自助排班管理在 V1 默认关闭。
+  // V1 usability supplement: 老师自助排班管理默认开放。
   @Delete('self/extra-slots/:ruleId')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @RequireCapability('teacherAvailabilityManage')
   @RequireRoles(PlatformRole.TEACHER)
-  @ApiExcludeEndpoint()
   @ApiBearerAuth('bearer')
   @ApiOperation({ summary: '老师删除单日临时开放时段' })
   @ApiOkResponse({ type: TeacherAvailabilityConfigResponseDto })
