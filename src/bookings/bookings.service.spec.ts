@@ -6,6 +6,7 @@ import {
   BookingExceptionStatus,
   BookingExceptionType,
   BookingStatus,
+  PaymentIntentStatus,
   PaymentStatus,
   PlatformRole,
   ResponsibilityType,
@@ -84,6 +85,7 @@ describe('BookingsService', () => {
       code: 'PIANO',
       name: '钢琴',
     },
+    paymentIntent: null,
     rescheduleRequests: [],
     serviceAddress: {
       id: 'addr_1',
@@ -159,6 +161,16 @@ describe('BookingsService', () => {
     hasSellableWindow: jest.fn(),
   };
 
+  const bookingPaymentProjector = {
+    ensurePaymentIntentForBookingTx: jest.fn(),
+    resetPaymentIntentForRetryTx: jest.fn(),
+    applyPaymentStateTx: jest.fn(),
+  };
+
+  const paymentsService = {
+    cancelPendingBookingPayment: jest.fn(),
+  };
+
   const teacherUser = {
     userId: 'user_teacher_1',
     activeRole: PlatformRole.TEACHER,
@@ -187,9 +199,21 @@ describe('BookingsService', () => {
     prisma.bookingHold.updateMany.mockResolvedValue({ count: 0 });
     prisma.bookingHold.findFirst.mockResolvedValue(null);
     prisma.bookingHold.update.mockResolvedValue(undefined);
+    bookingPaymentProjector.ensurePaymentIntentForBookingTx.mockResolvedValue({
+      id: 'payment_intent_1',
+      bookingId: 'booking_1',
+      status: PaymentIntentStatus.REQUIRES_PAYMENT,
+    });
+    bookingPaymentProjector.resetPaymentIntentForRetryTx.mockResolvedValue(
+      undefined,
+    );
+    bookingPaymentProjector.applyPaymentStateTx.mockResolvedValue(undefined);
+    paymentsService.cancelPendingBookingPayment.mockResolvedValue(undefined);
     service = new BookingsService(
       prisma as never,
       teacherAvailabilityService as never,
+      bookingPaymentProjector as never,
+      paymentsService as never,
     );
   });
 
@@ -265,6 +289,8 @@ describe('BookingsService', () => {
     service = new BookingsService(
       prisma as never,
       teacherAvailabilityService as never,
+      bookingPaymentProjector as never,
+      paymentsService as never,
     );
 
     prisma.teacherProfile.findUnique.mockResolvedValue(
@@ -334,6 +360,8 @@ describe('BookingsService', () => {
     service = new BookingsService(
       prisma as never,
       teacherAvailabilityService as never,
+      bookingPaymentProjector as never,
+      paymentsService as never,
     );
 
     prisma.teacherProfile.findUnique.mockResolvedValue(
@@ -452,12 +480,41 @@ describe('BookingsService', () => {
         ...bookingEntity,
         status: BookingStatus.PENDING_PAYMENT,
         teacherAcceptedAt: new Date('2026-03-18T09:00:00.000Z'),
+        paymentIntent: {
+          id: 'payment_intent_1',
+          status: PaymentIntentStatus.REQUIRES_PAYMENT,
+          amount: { toString: () => '112' },
+          currency: 'CNY',
+          expiresAt: new Date('2026-03-18T09:30:00.000Z'),
+          providerPrepayId: null,
+          lastNotifiedAt: null,
+          capturedAt: null,
+          updatedAt: new Date('2026-03-18T09:00:00.000Z'),
+        },
       });
-    prisma.booking.update.mockResolvedValue({
-      ...bookingEntity,
-      status: BookingStatus.PENDING_PAYMENT,
-      teacherAcceptedAt: new Date('2026-03-18T09:00:00.000Z'),
-    });
+    prisma.$transaction.mockImplementation(async (callback: any) =>
+      callback({
+        booking: {
+          update: jest.fn().mockResolvedValue(undefined),
+          findUniqueOrThrow: jest.fn().mockResolvedValue({
+            ...bookingEntity,
+            status: BookingStatus.PENDING_PAYMENT,
+            teacherAcceptedAt: new Date('2026-03-18T09:00:00.000Z'),
+            paymentIntent: {
+              id: 'payment_intent_1',
+              status: PaymentIntentStatus.REQUIRES_PAYMENT,
+              amount: { toString: () => '112' },
+              currency: 'CNY',
+              expiresAt: new Date('2026-03-18T09:30:00.000Z'),
+              providerPrepayId: null,
+              lastNotifiedAt: null,
+              capturedAt: null,
+              updatedAt: new Date('2026-03-18T09:00:00.000Z'),
+            },
+          }),
+        },
+      }),
+    );
 
     const result = await service.accept(teacherUser, 'booking_1', {
       acceptedAt: '2026-03-18T09:00:00.000Z',
@@ -469,17 +526,27 @@ describe('BookingsService', () => {
 
   it('should mark booking confirmed when payment succeeded', async () => {
     prisma.booking.findUnique.mockResolvedValue(bookingEntity);
-    prisma.booking.update.mockResolvedValue({
-      ...bookingEntity,
-      status: BookingStatus.CONFIRMED,
-      paymentStatus: PaymentStatus.PAID,
-    });
 
     prisma.$transaction.mockImplementation(async (callback: any) =>
       callback({
-        booking: prisma.booking,
-        lesson: {
-          upsert: jest.fn().mockResolvedValue(undefined),
+        booking: {
+          findUniqueOrThrow: jest.fn().mockResolvedValue({
+            ...bookingEntity,
+            status: BookingStatus.CONFIRMED,
+            paymentStatus: PaymentStatus.PAID,
+            paymentIntent: {
+              id: 'payment_intent_1',
+              status: PaymentIntentStatus.SUCCEEDED,
+              amount: { toString: () => '112' },
+              currency: 'CNY',
+              expiresAt: new Date('2026-03-19T12:00:00.000Z'),
+              providerPrepayId: 'prepay_1',
+              lastNotifiedAt: new Date('2026-03-18T09:10:00.000Z'),
+              capturedAt: new Date('2026-03-18T09:10:00.000Z'),
+              updatedAt: new Date('2026-03-18T09:10:00.000Z'),
+            },
+          }),
+          update: jest.fn().mockResolvedValue(undefined),
         },
       }),
     );
@@ -515,6 +582,86 @@ describe('BookingsService', () => {
 
     expect(result.status).toBe(BookingStatus.CANCELLED);
     expect(result.cancelledByUserId).toBe('user_guardian_1');
+  });
+
+  it('should cancel pending payment booking through payments service', async () => {
+    const cancelledAt = new Date('2026-03-18T10:30:00.000Z');
+    prisma.booking.findUnique
+      .mockResolvedValueOnce({
+        ...bookingEntity,
+        status: BookingStatus.PENDING_PAYMENT,
+        paymentIntent: {
+          id: 'payment_intent_1',
+          status: PaymentIntentStatus.REQUIRES_PAYMENT,
+          amount: { toString: () => '112' },
+          currency: 'CNY',
+          expiresAt: bookingEntity.paymentDueAt,
+          providerPrepayId: 'prepay_1',
+          lastNotifiedAt: null,
+          capturedAt: null,
+          updatedAt: new Date('2026-03-18T10:00:00.000Z'),
+        },
+      })
+      .mockResolvedValueOnce({
+        ...bookingEntity,
+        status: BookingStatus.CANCELLED,
+        cancellationReason: BookingCancellationReason.STUDENT_REQUEST,
+        cancelledByUserId: 'user_guardian_1',
+        cancelledAt,
+        statusRemark: '家长取消',
+        paymentIntent: {
+          id: 'payment_intent_1',
+          status: PaymentIntentStatus.CANCELLED,
+          amount: { toString: () => '112' },
+          currency: 'CNY',
+          expiresAt: bookingEntity.paymentDueAt,
+          providerPrepayId: 'prepay_1',
+          lastNotifiedAt: null,
+          capturedAt: null,
+          updatedAt: new Date('2026-03-18T10:31:00.000Z'),
+        },
+      });
+    prisma.user.findUnique.mockResolvedValue({ id: 'user_guardian_1' });
+
+    const result = await service.cancel(
+      'booking_1',
+      {
+        cancellationReason: BookingCancellationReason.STUDENT_REQUEST,
+        cancelledByUserId: 'user_guardian_1',
+        cancelledAt: cancelledAt.toISOString(),
+        remark: '家长取消',
+      },
+      guardianUser,
+    );
+
+    expect(paymentsService.cancelPendingBookingPayment).toHaveBeenCalledWith({
+      paymentIntentId: 'payment_intent_1',
+      paymentDueAt: bookingEntity.paymentDueAt,
+      cancellationReason: BookingCancellationReason.STUDENT_REQUEST,
+      cancelledAt,
+      cancelledByUserId: 'user_guardian_1',
+      remark: '家长取消',
+    });
+    expect(prisma.booking.update).not.toHaveBeenCalled();
+    expect(result.status).toBe(BookingStatus.CANCELLED);
+  });
+
+  it('should reject direct cancellation for paid booking', async () => {
+    prisma.booking.findUnique.mockResolvedValue({
+      ...bookingEntity,
+      status: BookingStatus.CONFIRMED,
+      paymentStatus: PaymentStatus.PAID,
+    });
+
+    await expect(
+      service.cancel(
+        'booking_1',
+        {
+          cancellationReason: BookingCancellationReason.STUDENT_REQUEST,
+        },
+        guardianUser,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('should reject reschedule requests in the past', async () => {

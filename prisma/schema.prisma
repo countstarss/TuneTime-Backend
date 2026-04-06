@@ -1068,6 +1068,11 @@ model PaymentIntent {
   status            PaymentIntentStatus @default(REQUIRES_PAYMENT)
   provider          String?
   providerPaymentId String?             @unique @map("provider_payment_id")
+  expiresAt         DateTime?           @map("expires_at")
+  providerPrepayId  String?             @map("provider_prepay_id")
+  prepayExpiresAt   DateTime?           @map("prepay_expires_at")
+  providerMetadata  Json?               @map("provider_metadata")
+  lastNotifiedAt    DateTime?           @map("last_notified_at")
   capturedAt        DateTime?           @map("captured_at")
   failedReason      String?             @map("failed_reason")
   createdAt         DateTime            @default(now()) @map("created_at")
@@ -1077,10 +1082,33 @@ model PaymentIntent {
   payerUser    User                @relation("PaymentPayer", fields: [payerUserId], references: [id], onDelete: Restrict)
   wallet       Wallet?             @relation(fields: [walletId], references: [id], onDelete: SetNull)
   transactions WalletTransaction[]
+  providerEvents PaymentProviderEvent[]
 
   @@index([payerUserId, status, createdAt])
   @@index([walletId])
   @@map("payment_intents")
+}
+
+// MARK: - 支付渠道事件
+model PaymentProviderEvent {
+  id              String   @id @default(cuid())
+  provider        String
+  eventId         String   @map("event_id")
+  paymentIntentId String?  @map("payment_intent_id")
+  headersDigest   String   @map("headers_digest")
+  payload         Json
+  receivedAt      DateTime @default(now()) @map("received_at")
+  processedAt     DateTime? @map("processed_at")
+  processResult   String?  @map("process_result")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  paymentIntent PaymentIntent? @relation(fields: [paymentIntentId], references: [id], onDelete: SetNull)
+
+  @@unique([provider, eventId])
+  @@index([paymentIntentId, receivedAt])
+  @@index([provider, receivedAt])
+  @@map("payment_provider_events")
 }
 
 // MARK: - 教师提现账户

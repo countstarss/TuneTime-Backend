@@ -61,7 +61,6 @@ export class BookingLifecycleAutomationService
 
   async runSweep() {
     await this.expirePendingAcceptance();
-    await this.expirePendingPayment();
     await this.flagOverdueNotStarted();
     await this.flagOverdueNotFinished();
     await this.autoConfirmCompleted();
@@ -81,22 +80,6 @@ export class BookingLifecycleAutomationService
         status: BookingStatus.EXPIRED,
         cancellationReason: BookingCancellationReason.SYSTEM_TIMEOUT,
         statusRemark: '老师长时间未处理，系统已自动关闭',
-        settlementReadiness: SettlementReadiness.BLOCKED,
-      },
-    });
-  }
-
-  private async expirePendingPayment() {
-    await this.prisma.booking.updateMany({
-      where: {
-        status: BookingStatus.PENDING_PAYMENT,
-        paymentStatus: PaymentStatus.UNPAID,
-        paymentDueAt: { lte: new Date() },
-      },
-      data: {
-        status: BookingStatus.EXPIRED,
-        cancellationReason: BookingCancellationReason.SYSTEM_TIMEOUT,
-        statusRemark: '支付超时，系统已自动关闭',
         settlementReadiness: SettlementReadiness.BLOCKED,
       },
     });

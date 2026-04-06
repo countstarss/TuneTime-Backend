@@ -15,6 +15,7 @@ import {
   BookingHoldStatus,
   BookingStatus,
   LessonAttendanceStatus,
+  PaymentIntentStatus,
   PaymentStatus,
   PlatformRole,
   Prisma,
@@ -27,11 +28,14 @@ import { AuthenticatedUserContext } from '../auth/auth.types';
 import { isDevMvpRelaxationEnabled } from '../common/dev-mvp.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { TeacherAvailabilityService } from '../teacher-availability/teacher-availability.service';
+import { BookingPaymentProjector } from '../payments/booking-payment-projector.service';
+import { PaymentsService } from '../payments/payments.service';
 import { AcceptBookingDto } from './dto/accept-booking.dto';
 import { ArriveBookingDto } from './dto/arrive-booking.dto';
 import { BookingHoldResponseDto } from './dto/booking-hold-response.dto';
 import {
   BookingListResponseDto,
+  BookingPaymentSnapshotDto,
   BookingResponseDto,
   BookingRescheduleRequestDto,
   DeleteBookingResponseDto,
@@ -132,6 +136,17 @@ type BookingWithRelations = Booking & {
     createdAt: Date;
     updatedAt: Date;
   }>;
+  paymentIntent: {
+    id: string;
+    status: PaymentIntentStatus;
+    amount: Prisma.Decimal;
+    currency: string;
+    expiresAt: Date | null;
+    providerPrepayId: string | null;
+    lastNotifiedAt: Date | null;
+    capturedAt: Date | null;
+    updatedAt: Date;
+  } | null;
 };
 
 type BookingContext = {
@@ -193,6 +208,8 @@ export class BookingsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly teacherAvailabilityService: TeacherAvailabilityService,
+    private readonly bookingPaymentProjector: BookingPaymentProjector,
+    private readonly paymentsService: PaymentsService,
   ) {}
 
   private readonly activeConflictStatuses: BookingStatus[] = [
@@ -356,6 +373,19 @@ export class BookingsService {
           updatedAt: true,
         },
       },
+      paymentIntent: {
+        select: {
+          id: true,
+          status: true,
+          amount: true,
+          currency: true,
+          expiresAt: true,
+          providerPrepayId: true,
+          lastNotifiedAt: true,
+          capturedAt: true,
+          updatedAt: true,
+        },
+      },
     } satisfies Prisma.BookingInclude;
   }
 
@@ -423,6 +453,7 @@ export class BookingsService {
       currency: booking.currency,
       paymentStatus: booking.paymentStatus,
       paymentDueAt: booking.paymentDueAt,
+      payment: this.toPaymentSnapshot(booking),
       completionStatus: booking.completionStatus,
       completionConfirmedAt: booking.completionConfirmedAt,
       exceptionStatus: booking.exceptionStatus,
@@ -473,6 +504,39 @@ export class BookingsService {
       ),
       createdAt: booking.createdAt,
       updatedAt: booking.updatedAt,
+    };
+  }
+
+  private toPaymentSnapshot(
+    booking: BookingWithRelations,
+  ): BookingPaymentSnapshotDto {
+    const paymentIntent = booking.paymentIntent;
+    const dueAt = paymentIntent?.expiresAt ?? booking.paymentDueAt;
+    const canRetry =
+      booking.status === BookingStatus.PENDING_PAYMENT &&
+      (!dueAt || dueAt.getTime() > Date.now()) &&
+      (!paymentIntent ||
+        paymentIntent.status === PaymentIntentStatus.REQUIRES_PAYMENT ||
+        paymentIntent.status === PaymentIntentStatus.FAILED);
+    const awaitingProviderNotification =
+      paymentIntent?.status === PaymentIntentStatus.PROCESSING ||
+      (paymentIntent?.status === PaymentIntentStatus.REQUIRES_PAYMENT &&
+        !!paymentIntent.providerPrepayId &&
+        booking.paymentStatus !== PaymentStatus.PAID);
+
+    return {
+      intentId: paymentIntent?.id ?? null,
+      intentStatus: paymentIntent?.status ?? null,
+      amount: paymentIntent ? this.toNumber(paymentIntent.amount) : null,
+      currency: paymentIntent?.currency ?? null,
+      dueAt,
+      canRetry,
+      awaitingProviderNotification,
+      lastSyncedAt:
+        paymentIntent?.lastNotifiedAt ??
+        paymentIntent?.capturedAt ??
+        paymentIntent?.updatedAt ??
+        null,
     };
   }
 
@@ -540,6 +604,33 @@ export class BookingsService {
 
     if (!user) {
       throw new NotFoundException(`未找到关联用户：${userId}`);
+    }
+  }
+
+  private resolvePayerUserIdFromBooking(booking: BookingWithRelations): string {
+    const payerUserId = booking.guardianProfile?.userId;
+    if (!payerUserId) {
+      throw new BadRequestException('当前预约缺少可用的付款方账号');
+    }
+
+    return payerUserId;
+  }
+
+  private mapBookingPaymentStatusToIntentStatus(
+    paymentStatus: PaymentStatus,
+  ): PaymentIntentStatus {
+    switch (paymentStatus) {
+      case PaymentStatus.PAID:
+        return PaymentIntentStatus.SUCCEEDED;
+      case PaymentStatus.FAILED:
+        return PaymentIntentStatus.FAILED;
+      case PaymentStatus.REFUNDED:
+        return PaymentIntentStatus.REFUNDED;
+      case PaymentStatus.UNPAID:
+        return PaymentIntentStatus.REQUIRES_PAYMENT;
+      case PaymentStatus.PARTIALLY_REFUNDED:
+      default:
+        throw new BadRequestException('当前支付状态暂不支持投影到支付意图');
     }
   }
 
@@ -1678,20 +1769,38 @@ export class BookingsService {
       throw new BadRequestException('只有待接单状态的预约才可以接单');
     }
 
-    const booking = await this.prisma.booking.update({
-      where: { id },
-      data: {
-        status: BookingStatus.PENDING_PAYMENT,
-        teacherAcceptedAt: dto.acceptedAt
-          ? this.parseDate(dto.acceptedAt, 'acceptedAt')
-          : new Date(),
-        paymentDueAt: new Date(Date.now() + 30 * 60 * 1000),
-        statusRemark: null,
-        ...(dto.planSummary !== undefined
-          ? { planSummary: dto.planSummary.trim() || null }
-          : {}),
-      },
-      include: this.getBookingInclude(),
+    const payerUserId = this.resolvePayerUserIdFromBooking(current);
+    const teacherAcceptedAt = dto.acceptedAt
+      ? this.parseDate(dto.acceptedAt, 'acceptedAt')
+      : new Date();
+    const paymentDueAt = new Date(Date.now() + 30 * 60 * 1000);
+
+    const booking = await this.prisma.$transaction(async (tx) => {
+      await tx.booking.update({
+        where: { id },
+        data: {
+          status: BookingStatus.PENDING_PAYMENT,
+          teacherAcceptedAt,
+          paymentDueAt,
+          statusRemark: null,
+          ...(dto.planSummary !== undefined
+            ? { planSummary: dto.planSummary.trim() || null }
+            : {}),
+        },
+      });
+
+      await this.bookingPaymentProjector.ensurePaymentIntentForBookingTx(tx, {
+        bookingId: current.id,
+        payerUserId,
+        amount: current.totalAmount,
+        currency: current.currency,
+        expiresAt: paymentDueAt,
+      });
+
+      return tx.booking.findUniqueOrThrow({
+        where: { id },
+        include: this.getBookingInclude(),
+      });
     });
 
     return this.toResponse(booking);
@@ -1756,58 +1865,48 @@ export class BookingsService {
       throw new BadRequestException('预约尚未接单，不能直接标记为支付成功');
     }
 
-    let nextStatus = current.status;
-    if (
-      dto.paymentStatus === PaymentStatus.PAID &&
-      current.status === BookingStatus.PENDING_PAYMENT
-    ) {
-      nextStatus = BookingStatus.CONFIRMED;
-    }
-    if (dto.paymentStatus === PaymentStatus.REFUNDED) {
-      nextStatus = BookingStatus.REFUNDED;
-    }
-
     const booking = await this.prisma.$transaction(async (tx) => {
-      const updated = await tx.booking.update({
-        where: { id },
-        data: {
-          paymentStatus: dto.paymentStatus,
-          status: nextStatus,
-          settlementReadiness:
-            dto.paymentStatus === PaymentStatus.REFUNDED
-              ? SettlementReadiness.BLOCKED
-              : current.settlementReadiness,
-          statusRemark:
-            dto.paymentStatus === PaymentStatus.FAILED
-              ? '支付失败，请重新尝试支付'
-              : current.statusRemark,
-          ...(dto.paymentDueAt !== undefined
-            ? {
-                paymentDueAt: dto.paymentDueAt
-                  ? this.parseDate(dto.paymentDueAt, 'paymentDueAt')
-                  : null,
-              }
-            : {}),
-        },
-        include: this.getBookingInclude(),
-      });
+      const paymentDueAt =
+        dto.paymentDueAt !== undefined
+          ? dto.paymentDueAt
+            ? this.parseDate(dto.paymentDueAt, 'paymentDueAt')
+            : null
+          : current.paymentDueAt;
 
-      if (
-        dto.paymentStatus === PaymentStatus.PAID &&
-        nextStatus === BookingStatus.CONFIRMED
-      ) {
-        await tx.lesson.upsert({
-          where: { bookingId: updated.id },
-          update: {},
-          create: {
-            bookingId: updated.id,
-            teacherProfileId: updated.teacherProfileId,
-            studentProfileId: updated.studentProfileId,
-          },
+      if (dto.paymentDueAt !== undefined) {
+        await tx.booking.update({
+          where: { id },
+          data: { paymentDueAt },
         });
       }
 
-      return updated;
+      const paymentIntent = await this.bookingPaymentProjector.ensurePaymentIntentForBookingTx(
+        tx,
+        {
+          bookingId: current.id,
+          payerUserId: this.resolvePayerUserIdFromBooking(current),
+          amount: current.totalAmount,
+          currency: current.currency,
+          expiresAt: paymentDueAt,
+        },
+      );
+
+      await this.bookingPaymentProjector.applyPaymentStateTx(tx, {
+        paymentIntentId: paymentIntent.id,
+        status: this.mapBookingPaymentStatusToIntentStatus(dto.paymentStatus),
+        expiresAt: paymentDueAt,
+        failedReason:
+          dto.paymentStatus === PaymentStatus.FAILED
+            ? '支付失败，请重新尝试支付'
+            : null,
+        capturedAt:
+          dto.paymentStatus === PaymentStatus.PAID ? new Date() : undefined,
+      });
+
+      return tx.booking.findUniqueOrThrow({
+        where: { id },
+        include: this.getBookingInclude(),
+      });
     });
 
     return this.toResponse(booking);
@@ -1842,17 +1941,41 @@ export class BookingsService {
       await this.ensureUserExists(dto.cancelledByUserId);
     }
 
+    if (current.paymentStatus === PaymentStatus.PAID) {
+      throw new BadRequestException('当前预约已支付，不能直接取消，请走退款流程');
+    }
+
+    const cancelledByUserId = dto.cancelledByUserId ?? currentUser.userId;
+    const cancelledAt = dto.cancelledAt
+      ? this.parseDate(dto.cancelledAt, 'cancelledAt')
+      : new Date();
+    const remark = dto.remark?.trim() || null;
+
+    if (
+      current.status === BookingStatus.PENDING_PAYMENT &&
+      current.paymentIntent?.id
+    ) {
+      await this.paymentsService.cancelPendingBookingPayment({
+        paymentIntentId: current.paymentIntent.id,
+        paymentDueAt: current.paymentDueAt,
+        cancellationReason: dto.cancellationReason,
+        cancelledAt,
+        cancelledByUserId,
+        remark,
+      });
+
+      return this.toResponse(await this.findBookingOrThrow(id));
+    }
+
     const booking = await this.prisma.booking.update({
       where: { id },
       data: {
         status: BookingStatus.CANCELLED,
         cancellationReason: dto.cancellationReason,
-        cancelledByUserId: dto.cancelledByUserId ?? currentUser.userId,
-        cancelledAt: dto.cancelledAt
-          ? this.parseDate(dto.cancelledAt, 'cancelledAt')
-          : new Date(),
+        cancelledByUserId,
+        cancelledAt,
         settlementReadiness: SettlementReadiness.BLOCKED,
-        statusRemark: dto.remark?.trim() || null,
+        statusRemark: remark,
       },
       include: this.getBookingInclude(),
     });
@@ -2381,44 +2504,37 @@ export class BookingsService {
             );
           }
 
-          let nextStatus = dto.bookingStatus ?? booking.status;
-          if (
-            dto.paymentStatus === PaymentStatus.PAID &&
-            booking.status === BookingStatus.PENDING_PAYMENT
-          ) {
-            nextStatus = BookingStatus.CONFIRMED;
-          }
-          if (dto.paymentStatus === PaymentStatus.REFUNDED) {
-            nextStatus = BookingStatus.REFUNDED;
-          }
+          const paymentIntent = await this.bookingPaymentProjector.ensurePaymentIntentForBookingTx(
+            tx,
+            {
+              bookingId: booking.id,
+              payerUserId: this.resolvePayerUserIdFromBooking(booking),
+              amount: booking.totalAmount,
+              currency: booking.currency,
+              expiresAt: booking.paymentDueAt,
+            },
+          );
+
+          await this.bookingPaymentProjector.applyPaymentStateTx(tx, {
+            paymentIntentId: paymentIntent.id,
+            status: this.mapBookingPaymentStatusToIntentStatus(
+              dto.paymentStatus,
+            ),
+            failedReason:
+              dto.paymentStatus === PaymentStatus.FAILED
+                ? dto.note.trim()
+                : null,
+            capturedAt:
+              dto.paymentStatus === PaymentStatus.PAID ? new Date() : undefined,
+          });
 
           await tx.booking.update({
             where: { id: booking.id },
             data: {
-              paymentStatus: dto.paymentStatus,
-              status: nextStatus,
-              settlementReadiness:
-                dto.paymentStatus === PaymentStatus.REFUNDED
-                  ? SettlementReadiness.BLOCKED
-                  : booking.settlementReadiness,
+              ...(dto.bookingStatus ? { status: dto.bookingStatus } : {}),
               statusRemark: dto.note.trim(),
             },
           });
-
-          if (
-            dto.paymentStatus === PaymentStatus.PAID &&
-            nextStatus === BookingStatus.CONFIRMED
-          ) {
-            await tx.lesson.upsert({
-              where: { bookingId: booking.id },
-              update: {},
-              create: {
-                bookingId: booking.id,
-                teacherProfileId: booking.teacherProfileId,
-                studentProfileId: booking.studentProfileId,
-              },
-            });
-          }
           break;
         }
         case ManualRepairAction.CHECK_IN: {

@@ -17,6 +17,7 @@ import { TeacherWorkbenchModule } from './teacher-workbench/teacher-workbench.mo
 import { TeacherAvailabilityModule } from './teacher-availability/teacher-availability.module';
 import { CalendarModule } from './calendar/calendar.module';
 import { FeatureGateGuard } from './common/feature-gate.guard';
+import { PaymentsModule } from './payments/payments.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { FeatureGateGuard } from './common/feature-gate.guard';
     TeacherWorkbenchModule,
     TeacherAvailabilityModule,
     CalendarModule,
+    PaymentsModule,
   ],
   controllers: [AppController],
   providers: [

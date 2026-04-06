@@ -252,6 +252,68 @@ export class BookingExceptionCaseDto {
   updatedAt!: Date;
 }
 
+export class BookingPaymentSnapshotDto {
+  @ApiProperty({
+    description: '支付意图 ID。',
+    example: 'cme123payment001',
+    nullable: true,
+    required: false,
+  })
+  intentId!: string | null;
+
+  @ApiProperty({
+    description: '支付意图状态。',
+    example: 'REQUIRES_PAYMENT',
+    nullable: true,
+    required: false,
+  })
+  intentStatus!: string | null;
+
+  @ApiProperty({
+    description: '支付金额。',
+    example: 183,
+    nullable: true,
+    required: false,
+  })
+  amount!: number | null;
+
+  @ApiProperty({
+    description: '支付币种。',
+    example: 'CNY',
+    nullable: true,
+    required: false,
+  })
+  currency!: string | null;
+
+  @ApiProperty({
+    description: '支付截止时间。',
+    example: '2026-03-19T12:00:00.000Z',
+    nullable: true,
+    required: false,
+  })
+  dueAt!: Date | null;
+
+  @ApiProperty({
+    description: '是否允许重新拉起支付。',
+    example: true,
+  })
+  canRetry!: boolean;
+
+  @ApiProperty({
+    description: '是否正在等待渠道异步通知。',
+    example: false,
+  })
+  awaitingProviderNotification!: boolean;
+
+  @ApiProperty({
+    description: '最近一次支付状态同步时间。',
+    example: '2026-03-19T11:35:00.000Z',
+    nullable: true,
+    required: false,
+  })
+  lastSyncedAt!: Date | null;
+}
+
 export class BookingResponseDto {
   @ApiProperty({ description: '预约 ID。', example: 'cmc123booking001' })
   id!: string;
@@ -382,6 +444,12 @@ export class BookingResponseDto {
     required: false,
   })
   paymentDueAt!: Date | null;
+
+  @ApiProperty({
+    description: '支付快照。',
+    type: BookingPaymentSnapshotDto,
+  })
+  payment!: BookingPaymentSnapshotDto;
 
   @ApiProperty({
     description: '完课确认状态。',

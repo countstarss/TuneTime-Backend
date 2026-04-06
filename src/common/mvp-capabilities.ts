@@ -34,7 +34,7 @@ export const MVP_CAPABILITIES = {
   bookingAdmin: false,
   teacherRespond: false,
   guardianConfirm: false,
-  payment: false,
+  payment: true,
   cancelBooking: false,
   reschedule: false,
   arrival: false,
