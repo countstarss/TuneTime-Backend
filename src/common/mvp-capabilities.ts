@@ -52,10 +52,25 @@ export const MVP_CAPABILITIES = {
 
 export type MvpCapability = keyof typeof MVP_CAPABILITIES;
 
+const CAPABILITY_ENV_OVERRIDES: Partial<Record<MvpCapability, string>> = {
+  payment: 'PAYMENT_ENABLED',
+};
+
 export function isMvpCapabilityEnabled(capability: MvpCapability): boolean {
+  const overrideEnvKey = CAPABILITY_ENV_OVERRIDES[capability];
+  const overrideValue = overrideEnvKey ? process.env[overrideEnvKey] : undefined;
+  if (overrideValue != null) {
+    return overrideValue === 'true';
+  }
+
   return MVP_CAPABILITIES[capability];
 }
 
 export function getMvpCapabilities() {
-  return { ...MVP_CAPABILITIES };
+  return Object.fromEntries(
+    (Object.keys(MVP_CAPABILITIES) as MvpCapability[]).map((capability) => [
+      capability,
+      isMvpCapabilityEnabled(capability),
+    ]),
+  ) as Record<MvpCapability, boolean>;
 }
