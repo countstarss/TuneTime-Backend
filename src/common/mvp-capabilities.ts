@@ -44,7 +44,6 @@ export const MVP_CAPABILITIES = {
   lessons: false,
   teacherReviews: false,
   calendar: false,
-  crm: false,
   testSupport: false,
   lifecycleAutomation: false,
   lessonEvidence: false,

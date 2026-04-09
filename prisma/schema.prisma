@@ -291,93 +291,6 @@ enum DocumentReviewStatus {
   REJECTED
 }
 
-// MARK: - CRM 线索状态
-enum CrmLeadStatus {
-  NEW
-  CONTACTED
-  QUALIFIED
-  CONVERTED
-  LOST
-}
-
-// MARK: - CRM 商机阶段
-enum CrmOpportunityStage {
-  NEW
-  QUALIFIED
-  TRIAL_SCHEDULED
-  TRIAL_COMPLETED
-  WON
-  LOST
-}
-
-// MARK: - CRM 任务状态
-enum CrmTaskStatus {
-  TODO
-  IN_PROGRESS
-  DONE
-  CANCELLED
-}
-
-// MARK: - CRM 任务优先级
-enum CrmTaskPriority {
-  LOW
-  MEDIUM
-  HIGH
-  URGENT
-}
-
-// MARK: - CRM 活动类型
-enum CrmActivityType {
-  NOTE
-  CALL
-  WECHAT
-  FOLLOW_UP
-  SYSTEM
-}
-
-// MARK: - CRM 案例状态
-enum CrmCaseStatus {
-  OPEN
-  IN_PROGRESS
-  WAITING_CUSTOMER
-  RESOLVED
-  CLOSED
-}
-
-// MARK: - CRM 案例优先级
-enum CrmCasePriority {
-  LOW
-  MEDIUM
-  HIGH
-  URGENT
-}
-
-// MARK: - CRM 案例分类
-enum CrmCaseCategory {
-  SCHEDULE_CHANGE
-  COMPLAINT
-  REFUND
-  TEACHER_CHANGE
-  PAYMENT
-  OTHER
-}
-
-// MARK: - CRM 动作运行状态
-enum CrmActionRunStatus {
-  PREVIEW
-  APPROVAL_REQUIRED
-  EXECUTED
-  REJECTED
-  FAILED
-}
-
-// MARK: - CRM 动作风险等级
-enum CrmActionRiskLevel {
-  LOW
-  MEDIUM
-  HIGH
-}
-
 // MARK: - 用户
 model User {
   id                     String     @id @default(cuid())
@@ -1078,10 +991,10 @@ model PaymentIntent {
   createdAt         DateTime            @default(now()) @map("created_at")
   updatedAt         DateTime            @updatedAt @map("updated_at")
 
-  booking      Booking             @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  payerUser    User                @relation("PaymentPayer", fields: [payerUserId], references: [id], onDelete: Restrict)
-  wallet       Wallet?             @relation(fields: [walletId], references: [id], onDelete: SetNull)
-  transactions WalletTransaction[]
+  booking        Booking                @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  payerUser      User                   @relation("PaymentPayer", fields: [payerUserId], references: [id], onDelete: Restrict)
+  wallet         Wallet?                @relation(fields: [walletId], references: [id], onDelete: SetNull)
+  transactions   WalletTransaction[]
   providerEvents PaymentProviderEvent[]
 
   @@index([payerUserId, status, createdAt])
@@ -1091,17 +1004,17 @@ model PaymentIntent {
 
 // MARK: - 支付渠道事件
 model PaymentProviderEvent {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   provider        String
-  eventId         String   @map("event_id")
-  paymentIntentId String?  @map("payment_intent_id")
-  headersDigest   String   @map("headers_digest")
+  eventId         String    @map("event_id")
+  paymentIntentId String?   @map("payment_intent_id")
+  headersDigest   String    @map("headers_digest")
   payload         Json
-  receivedAt      DateTime @default(now()) @map("received_at")
+  receivedAt      DateTime  @default(now()) @map("received_at")
   processedAt     DateTime? @map("processed_at")
-  processResult   String?  @map("process_result")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  processResult   String?   @map("process_result")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
   paymentIntent PaymentIntent? @relation(fields: [paymentIntentId], references: [id], onDelete: SetNull)
 
@@ -1193,185 +1106,6 @@ model WalletTransaction {
   @@index([status, occurredAt])
   @@index([createdByUserId])
   @@map("wallet_transactions")
-}
-
-// MARK: - CRM 线索
-model CrmLead {
-  id                         String        @id @default(cuid())
-  fullName                   String        @map("full_name")
-  phone                      String?
-  wechat                     String?
-  city                       String?
-  source                     String?
-  status                     CrmLeadStatus @default(NEW)
-  interestSubjectId          String?       @map("interest_subject_id")
-  budgetMin                  Decimal?      @map("budget_min") @db.Decimal(10, 2)
-  budgetMax                  Decimal?      @map("budget_max") @db.Decimal(10, 2)
-  desiredStartDate           DateTime?     @map("desired_start_date") @db.Date
-  notes                      String?
-  tags                       Json?
-  ownerUserId                String?       @map("owner_user_id")
-  convertedGuardianProfileId String?       @map("converted_guardian_profile_id")
-  convertedStudentProfileId  String?       @map("converted_student_profile_id")
-  lastContactedAt            DateTime?     @map("last_contacted_at")
-  createdAt                  DateTime      @default(now()) @map("created_at")
-  updatedAt                  DateTime      @updatedAt @map("updated_at")
-
-  opportunities CrmOpportunity[]
-  activities    CrmActivity[]
-  tasks         CrmTask[]
-  cases         CrmCase[]
-
-  @@index([status, createdAt])
-  @@index([ownerUserId, status])
-  @@index([phone])
-  @@index([city])
-  @@map("crm_leads")
-}
-
-// MARK: - CRM 商机
-model CrmOpportunity {
-  id                String              @id @default(cuid())
-  title             String
-  leadId            String?             @map("lead_id")
-  guardianProfileId String?             @map("guardian_profile_id")
-  studentProfileId  String?             @map("student_profile_id")
-  teacherProfileId  String?             @map("teacher_profile_id")
-  subjectId         String?             @map("subject_id")
-  bookingId         String?             @map("booking_id")
-  stage             CrmOpportunityStage @default(NEW)
-  ownerUserId       String?             @map("owner_user_id")
-  estimatedValue    Decimal?            @map("estimated_value") @db.Decimal(12, 2)
-  expectedBookingAt DateTime?           @map("expected_booking_at")
-  nextFollowUpAt    DateTime?           @map("next_follow_up_at")
-  summary           String?
-  lossReason        String?             @map("loss_reason")
-  lastActivityAt    DateTime?           @map("last_activity_at")
-  createdAt         DateTime            @default(now()) @map("created_at")
-  updatedAt         DateTime            @updatedAt @map("updated_at")
-
-  lead       CrmLead?      @relation(fields: [leadId], references: [id], onDelete: SetNull)
-  activities CrmActivity[]
-  tasks      CrmTask[]
-  cases      CrmCase[]
-
-  @@index([stage, createdAt])
-  @@index([ownerUserId, stage])
-  @@index([leadId])
-  @@index([guardianProfileId])
-  @@index([bookingId])
-  @@map("crm_opportunities")
-}
-
-// MARK: - CRM 任务
-model CrmTask {
-  id                String          @id @default(cuid())
-  title             String
-  description       String?
-  status            CrmTaskStatus   @default(TODO)
-  priority          CrmTaskPriority @default(MEDIUM)
-  leadId            String?         @map("lead_id")
-  opportunityId     String?         @map("opportunity_id")
-  guardianProfileId String?         @map("guardian_profile_id")
-  bookingId         String?         @map("booking_id")
-  assigneeUserId    String?         @map("assignee_user_id")
-  createdByUserId   String?         @map("created_by_user_id")
-  dueAt             DateTime?       @map("due_at")
-  completedAt       DateTime?       @map("completed_at")
-  createdAt         DateTime        @default(now()) @map("created_at")
-  updatedAt         DateTime        @updatedAt @map("updated_at")
-
-  lead        CrmLead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
-  opportunity CrmOpportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
-
-  @@index([status, dueAt])
-  @@index([assigneeUserId, status])
-  @@index([leadId])
-  @@index([opportunityId])
-  @@index([bookingId])
-  @@map("crm_tasks")
-}
-
-// MARK: - CRM 活动
-model CrmActivity {
-  id                String          @id @default(cuid())
-  type              CrmActivityType
-  content           String
-  leadId            String?         @map("lead_id")
-  opportunityId     String?         @map("opportunity_id")
-  guardianProfileId String?         @map("guardian_profile_id")
-  bookingId         String?         @map("booking_id")
-  createdByUserId   String?         @map("created_by_user_id")
-  happenedAt        DateTime        @default(now()) @map("happened_at")
-  metadata          Json?
-  createdAt         DateTime        @default(now()) @map("created_at")
-  updatedAt         DateTime        @updatedAt @map("updated_at")
-
-  lead        CrmLead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
-  opportunity CrmOpportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
-
-  @@index([type, happenedAt])
-  @@index([leadId, happenedAt])
-  @@index([opportunityId, happenedAt])
-  @@index([bookingId, happenedAt])
-  @@map("crm_activities")
-}
-
-// MARK: - CRM 案例
-model CrmCase {
-  id                String          @id @default(cuid())
-  title             String
-  description       String?
-  category          CrmCaseCategory
-  status            CrmCaseStatus   @default(OPEN)
-  priority          CrmCasePriority @default(MEDIUM)
-  leadId            String?         @map("lead_id")
-  opportunityId     String?         @map("opportunity_id")
-  guardianProfileId String?         @map("guardian_profile_id")
-  studentProfileId  String?         @map("student_profile_id")
-  teacherProfileId  String?         @map("teacher_profile_id")
-  bookingId         String?         @map("booking_id")
-  ownerUserId       String?         @map("owner_user_id")
-  createdByUserId   String?         @map("created_by_user_id")
-  resolutionSummary String?         @map("resolution_summary")
-  nextActionAt      DateTime?       @map("next_action_at")
-  closedAt          DateTime?       @map("closed_at")
-  createdAt         DateTime        @default(now()) @map("created_at")
-  updatedAt         DateTime        @updatedAt @map("updated_at")
-
-  lead        CrmLead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
-  opportunity CrmOpportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
-
-  @@index([status, priority, createdAt])
-  @@index([ownerUserId, status])
-  @@index([guardianProfileId, status])
-  @@index([bookingId, status])
-  @@index([leadId])
-  @@index([opportunityId])
-  @@map("crm_cases")
-}
-
-// MARK: - CRM 动作运行
-model CrmActionRun {
-  id               String             @id @default(cuid())
-  instruction      String?
-  actionKey        String             @map("action_key")
-  status           CrmActionRunStatus @default(PREVIEW)
-  riskLevel        CrmActionRiskLevel @default(LOW) @map("risk_level")
-  requiresApproval Boolean            @default(false) @map("requires_approval")
-  approvedByUserId String?            @map("approved_by_user_id")
-  executedByUserId String?            @map("executed_by_user_id")
-  entityType       String?            @map("entity_type")
-  entityId         String?            @map("entity_id")
-  payload          Json?
-  result           Json?
-  createdAt        DateTime           @default(now()) @map("created_at")
-  updatedAt        DateTime           @updatedAt @map("updated_at")
-
-  @@index([status, createdAt])
-  @@index([actionKey, createdAt])
-  @@index([entityType, entityId])
-  @@map("crm_action_runs")
 }
 
 // MARK: - 管理员审计日志
