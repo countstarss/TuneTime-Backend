@@ -50,7 +50,6 @@ import { ManualRepairBookingDto } from './dto/manual-repair-booking.dto';
 import { RespondBookingDto } from './dto/respond-booking.dto';
 import { RespondRescheduleRequestDto } from './dto/respond-reschedule-request.dto';
 import { ResolveBookingDisputeDto } from './dto/resolve-booking-dispute.dto';
-import { UpdateBookingPaymentDto } from './dto/update-booking-payment.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
 import { BookingsService } from './bookings.service';
 
@@ -319,36 +318,6 @@ export class BookingsController {
     @Body() dto: ConfirmBookingDto,
   ): Promise<BookingResponseDto> {
     return this.bookingsService.guardianConfirm(currentUser, id, dto);
-  }
-
-  // @post-mvp: 支付推进在 V1 默认关闭。
-  @Patch(':id/payment')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @RequireCapability('payment')
-  @RequireRoles(
-    PlatformRole.GUARDIAN,
-    PlatformRole.ADMIN,
-    PlatformRole.SUPER_ADMIN,
-  )
-  @ApiExcludeEndpoint()
-  @ApiBearerAuth('bearer')
-  @ApiOperation({
-    summary: '更新预约支付状态',
-    description:
-      '支付成功后会自动将预约状态推进到已确认；退款完成后会同步改成已退款。',
-  })
-  @ApiParam({ name: 'id', description: '预约 ID。' })
-  @ApiBody({ type: UpdateBookingPaymentDto })
-  @ApiOkResponse({
-    description: '支付状态更新成功。',
-    type: BookingResponseDto,
-  })
-  updatePayment(
-    @CurrentUser() currentUser: AuthenticatedUserContext,
-    @Param('id') id: string,
-    @Body() dto: UpdateBookingPaymentDto,
-  ): Promise<BookingResponseDto> {
-    return this.bookingsService.updatePayment(currentUser, id, dto);
   }
 
   // @post-mvp: 取消订单在 V1 默认关闭。

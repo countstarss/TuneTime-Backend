@@ -334,10 +334,8 @@ export class IdentityLinkingService {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      const [target, source] = await Promise.all([
-        this.getMergeCandidate(tx, input.targetUserId),
-        this.getMergeCandidate(tx, input.sourceUserId),
-      ]);
+      const target = await this.getMergeCandidate(tx, input.targetUserId);
+      const source = await this.getMergeCandidate(tx, input.sourceUserId);
 
       if (target.email && source.email && target.email !== source.email) {
         throw new ConflictException(
@@ -452,48 +450,46 @@ export class IdentityLinkingService {
         });
       }
 
-      await Promise.all([
-        tx.session.updateMany({
-          where: { userId: source.id },
-          data: { userId: target.id },
-        }),
-        tx.authenticator.updateMany({
-          where: { userId: source.id },
-          data: { userId: target.id },
-        }),
-        tx.address.updateMany({
-          where: { userId: source.id },
-          data: { userId: target.id },
-        }),
-        tx.authVerificationCode.updateMany({
-          where: { userId: source.id },
-          data: { userId: target.id },
-        }),
-        tx.booking.updateMany({
-          where: { cancelledByUserId: source.id },
-          data: { cancelledByUserId: target.id },
-        }),
-        tx.paymentIntent.updateMany({
-          where: { payerUserId: source.id },
-          data: { payerUserId: target.id },
-        }),
-        tx.walletTransaction.updateMany({
-          where: { createdByUserId: source.id },
-          data: { createdByUserId: target.id },
-        }),
-        tx.adminAuditLog.updateMany({
-          where: { actorUserId: source.id },
-          data: { actorUserId: target.id },
-        }),
-        tx.teacherAvailabilityBlock.updateMany({
-          where: { createdByUserId: source.id },
-          data: { createdByUserId: target.id },
-        }),
-        tx.teacherCredential.updateMany({
-          where: { reviewedByUserId: source.id },
-          data: { reviewedByUserId: target.id },
-        }),
-      ]);
+      await tx.session.updateMany({
+        where: { userId: source.id },
+        data: { userId: target.id },
+      });
+      await tx.authenticator.updateMany({
+        where: { userId: source.id },
+        data: { userId: target.id },
+      });
+      await tx.address.updateMany({
+        where: { userId: source.id },
+        data: { userId: target.id },
+      });
+      await tx.authVerificationCode.updateMany({
+        where: { userId: source.id },
+        data: { userId: target.id },
+      });
+      await tx.booking.updateMany({
+        where: { cancelledByUserId: source.id },
+        data: { cancelledByUserId: target.id },
+      });
+      await tx.paymentIntent.updateMany({
+        where: { payerUserId: source.id },
+        data: { payerUserId: target.id },
+      });
+      await tx.walletTransaction.updateMany({
+        where: { createdByUserId: source.id },
+        data: { createdByUserId: target.id },
+      });
+      await tx.adminAuditLog.updateMany({
+        where: { actorUserId: source.id },
+        data: { actorUserId: target.id },
+      });
+      await tx.teacherAvailabilityBlock.updateMany({
+        where: { createdByUserId: source.id },
+        data: { createdByUserId: target.id },
+      });
+      await tx.teacherCredential.updateMany({
+        where: { reviewedByUserId: source.id },
+        data: { reviewedByUserId: target.id },
+      });
 
       const nextPrimaryRole =
         target.roles.find((item) => item.isPrimary)?.role ??

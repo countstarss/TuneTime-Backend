@@ -106,6 +106,8 @@ export class BookingPaymentProjector {
         status: PaymentIntentStatus.REQUIRES_PAYMENT,
         failedReason: null,
         expiresAt: input.expiresAt,
+        providerPrepayId: null,
+        prepayExpiresAt: null,
         providerMetadata: input.providerMetadata,
       },
     });

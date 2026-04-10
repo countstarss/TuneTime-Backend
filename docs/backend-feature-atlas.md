@@ -68,7 +68,8 @@ User -> 角色壳子(Teacher/Guardian/Student) -> Booking -> Lesson -> Review
 | `calendar` | 1 | 登录用户（主要是 `GUARDIAN` / `TEACHER`） | `Booking` `Lesson` | 家长/老师统一课表视图 | 按角色过滤 booking | `services/calendar.ts` |
 | `crm` | 29 | `CRM_AUTH` | `CrmLead` `CrmOpportunity` `CrmTask` `CrmActivity` `CrmCase` `CrmActionRun` | CRM 概览、客户 360、业务工单、AI 动作层 | `CrmAccessGuard`；当前屏蔽 `TEACHER` `STUDENT` | 当前主要不是小程序主链 |
 | `test-support` | 3 | 当前 controller 层公开 | QA 场景与日志存储 | 固定账号、场景重置、模拟支付 | `TEST_SUPPORT_ENABLED` 或非 production | `services/dev-tools.ts` |
-| 资金预留（无 controller） | 0 | 暂未开放 | `Wallet` `PaymentIntent` `WalletTransaction` `TeacherPayoutAccount` `Payout` | 为支付、结算、提现留好了模型 | 当前更多是 schema 预留，而非完整业务闭环 | 对应 WX 方案文档，未完整接通 |
+| `payments` | 3 | `GUARDIAN` + 微信回调 | `PaymentIntent` `PaymentProviderEvent` `Booking` `Lesson` | 微信小程序支付准备、支付回调、主动查单 | 普通商户模式，回调/查单会校验 AppID、商户号、金额和币种 | `services/payment.ts` |
+| 资金结算预留（无 controller） | 0 | 暂未开放 | `Wallet` `WalletTransaction` `TeacherPayoutAccount` `Payout` | 为钱包、结算、提现留好了模型 | 当前还没有真实退款、对账、商家转账和提现闭环 | 对应 WX 方案文档，未完整接通 |
 
 ## 3. 状态机图谱
 
@@ -298,7 +299,8 @@ TuneTime-WX 当前已接或已定义的家长侧消费入口：
 -> 消费 hold，写 Booking
 -> GET /bookings/mine
 -> GET /bookings/mine/:id
--> PATCH /bookings/:id/payment
+-> POST /payments/bookings/:bookingId/prepare
+-> POST /payments/bookings/:bookingId/reconcile
 -> PATCH /bookings/:id/cancel
 -> POST /bookings/:id/reschedule
 -> PATCH /bookings/:id/reschedule/:requestId/respond
@@ -489,7 +491,6 @@ Guardian onboarding
 
 管理员直接参与：
 
-- `/bookings/:id/payment`
 - `/bookings/:id/disputes/:caseId/resolve`
 - `/bookings/:id/ops/manual-repair`
 - `/lessons/:id/attendance`
@@ -758,7 +759,6 @@ TuneTime-WX 已直接消费：
 | PATCH | `/bookings/:id/respond` | `TEACHER` | 老师统一响应预约 |
 | PATCH | `/bookings/:id/accept` | `TEACHER` | 老师接单 |
 | PATCH | `/bookings/:id/guardian-confirm` | `GUARDIAN` | 家长确认预约 |
-| PATCH | `/bookings/:id/payment` | `GUARDIAN, ADMIN, SUPER_ADMIN` | 更新预约支付状态 |
 | PATCH | `/bookings/:id/cancel` | `GUARDIAN, TEACHER` | 取消预约 |
 | POST | `/bookings/:id/reschedule` | `GUARDIAN, TEACHER` | 发起改约请求 |
 | PATCH | `/bookings/:id/reschedule/:requestId/respond` | `GUARDIAN, TEACHER` | 响应改约请求 |
@@ -837,7 +837,15 @@ TuneTime-WX 已直接消费：
 | POST | `/crm/ai/interpret` | `CRM_AUTH` | 把自然语言解释为 CRM 动作计划 |
 | POST | `/crm/ai/execute` | `CRM_AUTH` | 执行或 dry-run CRM 动作 |
 
-### 7.15 test-support
+### 7.15 payments
+
+| Method | Path | Roles | Summary |
+| --- | --- | --- | --- |
+| POST | `/payments/bookings/:bookingId/prepare` | `GUARDIAN` | 为预约准备微信小程序支付参数 |
+| POST | `/payments/bookings/:bookingId/reconcile` | `GUARDIAN` | 主动查询微信支付状态并回写订单 |
+| POST | `/payments/wechat/notify` | `PUBLIC` | 接收微信支付异步通知 |
+
+### 7.16 test-support
 
 | Method | Path | Roles | Summary |
 | --- | --- | --- | --- |

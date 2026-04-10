@@ -1847,8 +1847,8 @@ export class BookingsService {
   ): Promise<BookingResponseDto> {
     const current = await this.findBookingOrThrow(id);
 
-    if (currentUser?.activeRole === PlatformRole.GUARDIAN) {
-      await this.assertGuardianCanAccessBooking(currentUser, current);
+    if (currentUser && !this.isAdminUser(currentUser)) {
+      throw new ForbiddenException('只有后台管理员可以人工更新支付状态');
     }
 
     if (

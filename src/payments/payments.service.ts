@@ -28,7 +28,19 @@ import {
   WechatOrderQueryResult,
   WechatPayClient,
   WechatPayNotificationResult,
+  WechatPaymentAmount,
 } from './wechat-pay.client';
+
+type PaymentIntentProviderSnapshot = {
+  id: string;
+  amount: Prisma.Decimal;
+  currency: string;
+  booking: {
+    id: string;
+    totalAmount: Prisma.Decimal;
+    currency: string;
+  };
+};
 
 @Injectable()
 export class PaymentsService {
@@ -76,11 +88,24 @@ export class PaymentsService {
       });
     });
 
+    const reusablePaymentParams =
+      this.buildReusablePaymentParamsIfAvailable(paymentIntent);
+    if (reusablePaymentParams) {
+      return {
+        paymentIntentId: paymentIntent.id,
+        intentStatus: paymentIntent.status,
+        expiresAt: paymentIntent.expiresAt ?? booking.paymentDueAt,
+        awaitingProviderNotification: false,
+        paymentParams: reusablePaymentParams,
+      };
+    }
+
     const prepared = await this.wechatPayClient.prepareJsapiPayment({
       paymentIntentId: paymentIntent.id,
       description: this.buildPaymentDescription(booking.subject.name, booking.bookingNo),
       amountCents: this.toCents(booking.totalAmount),
       payerOpenId: miniappAccount.openId!,
+      timeExpire: booking.paymentDueAt,
     });
 
     const updatedIntent = await this.prisma.paymentIntent.update({
@@ -160,9 +185,21 @@ export class PaymentsService {
 
     const paymentIntent = await this.prisma.paymentIntent.findUnique({
       where: { id: notification.paymentIntentId },
-      select: { id: true },
+      select: {
+        id: true,
+        amount: true,
+        currency: true,
+        booking: {
+          select: {
+            id: true,
+            totalAmount: true,
+            currency: true,
+          },
+        },
+      },
     });
 
+    let rejectedReason: string | null = null;
     try {
       await this.prisma.$transaction(async (tx) => {
         const providerEvent = await tx.paymentProviderEvent.create({
@@ -182,6 +219,21 @@ export class PaymentsService {
             data: {
               processedAt: new Date(),
               processResult: 'PAYMENT_INTENT_NOT_FOUND',
+            },
+          });
+          return;
+        }
+
+        rejectedReason = this.getWechatPaymentMismatchReason(
+          notification,
+          paymentIntent,
+        );
+        if (rejectedReason) {
+          await tx.paymentProviderEvent.update({
+            where: { id: providerEvent.id },
+            data: {
+              processedAt: new Date(),
+              processResult: `REJECTED:${rejectedReason}`,
             },
           });
           return;
@@ -215,6 +267,10 @@ export class PaymentsService {
         };
       }
       throw error;
+    }
+
+    if (rejectedReason) {
+      throw new BadRequestException(rejectedReason);
     }
 
     return {
@@ -356,9 +412,19 @@ export class PaymentsService {
     paymentIntentId: string;
     paymentDueAt: Date | null;
   }) {
+    const paymentIntent = await this.loadPaymentIntentForProviderValidation(
+      input.paymentIntentId,
+    );
     const queryResult = await this.wechatPayClient.queryOrder(
       input.paymentIntentId,
     );
+    const mismatchReason = this.getWechatPaymentMismatchReason(
+      queryResult,
+      paymentIntent,
+    );
+    if (mismatchReason) {
+      throw new BadRequestException(mismatchReason);
+    }
 
     await this.prisma.$transaction(async (tx) => {
       await this.bookingPaymentProjector.applyPaymentStateTx(tx, {
@@ -421,7 +487,19 @@ export class PaymentsService {
   }
 
   private toCents(amount: Prisma.Decimal | { toString(): string }) {
-    return Math.round(Number(amount.toString()) * 100);
+    const normalized = amount.toString().trim();
+    const match = normalized.match(/^(\d+)(?:\.(\d{1,2}))?$/);
+    if (!match) {
+      throw new BadRequestException('支付金额格式非法');
+    }
+
+    const cents =
+      Number(match[1]) * 100 + Number((match[2] ?? '').padEnd(2, '0'));
+    if (!Number.isSafeInteger(cents) || cents <= 0) {
+      throw new BadRequestException('支付金额必须大于 0');
+    }
+
+    return cents;
   }
 
   private mapTradeStateToIntentStatus(
@@ -469,6 +547,120 @@ export class PaymentsService {
     paymentIntentId: string,
   ): Promise<WechatCloseOrderResult> {
     return this.wechatPayClient.closeOrder(paymentIntentId);
+  }
+
+  private buildReusablePaymentParamsIfAvailable(paymentIntent: {
+    status: PaymentIntentStatus;
+    providerPrepayId: string | null;
+    prepayExpiresAt: Date | null;
+  }) {
+    if (
+      paymentIntent.status !== PaymentIntentStatus.REQUIRES_PAYMENT ||
+      !paymentIntent.providerPrepayId ||
+      !paymentIntent.prepayExpiresAt
+    ) {
+      return null;
+    }
+
+    const reuseBufferMs = 60_000;
+    if (paymentIntent.prepayExpiresAt.getTime() <= Date.now() + reuseBufferMs) {
+      return null;
+    }
+
+    return this.wechatPayClient.buildMiniappPaymentParams(
+      paymentIntent.providerPrepayId,
+    );
+  }
+
+  private loadPaymentIntentForProviderValidation(paymentIntentId: string) {
+    return this.prisma.paymentIntent.findUniqueOrThrow({
+      where: { id: paymentIntentId },
+      select: {
+        id: true,
+        amount: true,
+        currency: true,
+        booking: {
+          select: {
+            id: true,
+            totalAmount: true,
+            currency: true,
+          },
+        },
+      },
+    });
+  }
+
+  private getWechatPaymentMismatchReason(
+    payment:
+      | WechatPayNotificationResult
+      | WechatOrderQueryResult,
+    paymentIntent: PaymentIntentProviderSnapshot,
+  ) {
+    const merchantIdentity = this.wechatPayClient.getMerchantIdentity();
+    if (payment.paymentIntentId !== paymentIntent.id) {
+      return '微信支付订单号与本地支付意图不一致';
+    }
+
+    if (payment.appId !== merchantIdentity.appId) {
+      return '微信支付 AppID 与本地配置不一致';
+    }
+
+    if (payment.mchId !== merchantIdentity.mchId) {
+      return '微信支付商户号与本地配置不一致';
+    }
+
+    const currencyMismatch = this.getWechatCurrencyMismatchReason(
+      payment.amount,
+      paymentIntent,
+    );
+    if (currencyMismatch) {
+      return currencyMismatch;
+    }
+
+    if (payment.tradeState === 'SUCCESS') {
+      const amountCents = this.getWechatAmountCents(payment.amount);
+      if (amountCents == null) {
+        return '微信支付成功结果缺少订单金额';
+      }
+
+      const expectedCents = this.toCents(paymentIntent.amount);
+      if (amountCents !== expectedCents) {
+        return '微信支付成功金额与本地订单金额不一致';
+      }
+    }
+
+    return null;
+  }
+
+  private getWechatCurrencyMismatchReason(
+    amount: WechatPaymentAmount | null,
+    paymentIntent: PaymentIntentProviderSnapshot,
+  ) {
+    const currency = amount?.currency ?? amount?.payer_currency;
+    if (currency && currency !== paymentIntent.currency) {
+      return '微信支付币种与本地支付意图不一致';
+    }
+
+    if (paymentIntent.currency !== paymentIntent.booking.currency) {
+      return '本地支付意图币种与预约订单币种不一致';
+    }
+
+    return null;
+  }
+
+  private getWechatAmountCents(amount: WechatPaymentAmount | null) {
+    if (typeof amount?.total === 'number' && Number.isInteger(amount.total)) {
+      return amount.total;
+    }
+
+    if (
+      typeof amount?.payer_total === 'number' &&
+      Number.isInteger(amount.payer_total)
+    ) {
+      return amount.payer_total;
+    }
+
+    return null;
   }
 
   private isUniqueConstraintError(error: unknown) {

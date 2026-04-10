@@ -107,7 +107,7 @@
 | `POST /teacher-availability/search` | 开放 | 可恢复按上课时间 + 科目搜索老师 |
 | `GET /teacher-availability/self/config` 及 `self/*` | 开放 | 老师端可恢复排班管理入口 |
 | `PATCH /bookings/:id/respond` | 关闭 | 老师侧只保留 `PATCH /bookings/:id/accept` |
-| `PATCH /bookings/:id/payment` | 关闭 | 小程序端不要再做支付推进联调 |
+| `PATCH /bookings/:id/payment` | 已移除 | 小程序端不要再做支付推进联调，真实支付只走 `/payments/bookings/:bookingId/prepare` |
 | `PATCH /bookings/:id/cancel` | 关闭 | 小程序端不要再做取消联调 |
 | `GET /calendar/me` | 关闭 | 课表页下线或纯静态占位 |
 | `/lessons/*` | 关闭 | lesson 记录页下线 |

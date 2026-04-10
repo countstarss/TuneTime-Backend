@@ -18,10 +18,12 @@ type WechatPayConfig = {
   appId: string;
   mchId: string;
   merchantSerialNo: string;
+  platformSerialNo: string;
   notifyUrl: string;
   apiV3Key: string;
   privateKey: KeyObject;
   platformPublicKey: KeyObject;
+  requestTimeoutMs: number;
 };
 
 type WechatPayApiErrorPayload = {
@@ -33,13 +35,22 @@ type WechatJsapiPrepayResponse = {
   prepay_id?: string;
 };
 
+export type WechatPaymentAmount = {
+  total?: number;
+  payer_total?: number;
+  currency?: string;
+  payer_currency?: string;
+};
+
 type WechatOrderQueryResponse = {
+  appid?: string;
+  mchid?: string;
   out_trade_no?: string;
   transaction_id?: string;
   trade_state?: string;
   trade_state_desc?: string;
   success_time?: string;
-  amount?: Record<string, unknown>;
+  amount?: WechatPaymentAmount;
 };
 
 type WechatNotificationEnvelope = {
@@ -57,12 +68,14 @@ type WechatNotificationEnvelope = {
 };
 
 type WechatNotificationTransaction = {
+  appid?: string;
+  mchid?: string;
   out_trade_no?: string;
   transaction_id?: string;
   trade_state?: string;
   trade_state_desc?: string;
   success_time?: string;
-  amount?: Record<string, unknown>;
+  amount?: WechatPaymentAmount;
 };
 
 export type WechatMiniappPaymentParams = {
@@ -82,20 +95,26 @@ export type WechatPreparePaymentResult = {
 
 export type WechatOrderQueryResult = {
   paymentIntentId: string;
+  appId: string | null;
+  mchId: string | null;
   transactionId: string | null;
   tradeState: string;
   tradeStateDesc: string | null;
   successTime: Date | null;
+  amount: WechatPaymentAmount | null;
   raw: WechatOrderQueryResponse;
 };
 
 export type WechatPayNotificationResult = {
   eventId: string;
   paymentIntentId: string;
+  appId: string | null;
+  mchId: string | null;
   transactionId: string | null;
   tradeState: string;
   tradeStateDesc: string | null;
   successTime: Date | null;
+  amount: WechatPaymentAmount | null;
   resource: WechatNotificationTransaction;
   rawEnvelope: WechatNotificationEnvelope;
 };
@@ -103,6 +122,14 @@ export type WechatPayNotificationResult = {
 export type WechatCloseOrderResult = {
   status: 'CLOSED' | 'ALREADY_PAID';
 };
+
+export type WechatMerchantIdentity = {
+  appId: string;
+  mchId: string;
+};
+
+const MAX_WECHAT_PAY_CLOCK_SKEW_SECONDS = 5 * 60;
+const DEFAULT_WECHAT_PAY_REQUEST_TIMEOUT_MS = 5_000;
 
 @Injectable()
 export class WechatPayClient {
@@ -113,6 +140,7 @@ export class WechatPayClient {
     description: string;
     amountCents: number;
     payerOpenId: string;
+    timeExpire?: Date | null;
   }): Promise<WechatPreparePaymentResult> {
     const config = this.getConfig();
     return this.request<WechatJsapiPrepayResponse>({
@@ -123,6 +151,11 @@ export class WechatPayClient {
         mchid: config.mchId,
         description: input.description,
         out_trade_no: input.paymentIntentId,
+        ...(input.timeExpire
+          ? {
+              time_expire: input.timeExpire.toISOString(),
+            }
+          : {}),
         notify_url: config.notifyUrl,
         amount: {
           total: input.amountCents,
@@ -141,7 +174,7 @@ export class WechatPayClient {
       return {
         providerPrepayId: payload.prepay_id,
         paymentParams,
-        prepayExpiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000),
+        prepayExpiresAt: this.resolvePrepayExpiresAt(input.timeExpire),
       };
     });
   }
@@ -155,10 +188,13 @@ export class WechatPayClient {
 
     return {
       paymentIntentId,
+      appId: payload.appid ?? null,
+      mchId: payload.mchid ?? null,
       transactionId: payload.transaction_id ?? null,
       tradeState: payload.trade_state ?? 'UNKNOWN',
       tradeStateDesc: payload.trade_state_desc ?? null,
       successTime: payload.success_time ? new Date(payload.success_time) : null,
+      amount: payload.amount ?? null,
       raw: payload,
     };
   }
@@ -190,23 +226,11 @@ export class WechatPayClient {
     rawBody: Buffer | string;
     headers: Record<string, string | string[] | undefined>;
   }): WechatPayNotificationResult {
-    const config = this.getConfig();
     const rawBody =
       typeof input.rawBody === 'string'
         ? input.rawBody
         : input.rawBody.toString('utf8');
-    const timestamp = this.requireHeader(input.headers, 'wechatpay-timestamp');
-    const nonce = this.requireHeader(input.headers, 'wechatpay-nonce');
-    const signature = this.requireHeader(input.headers, 'wechatpay-signature');
-    const message = `${timestamp}\n${nonce}\n${rawBody}\n`;
-
-    const verifier = createVerify('RSA-SHA256');
-    verifier.update(message);
-    verifier.end();
-    const verified = verifier.verify(config.platformPublicKey, signature, 'base64');
-    if (!verified) {
-      throw new UnauthorizedException('Invalid WeChat Pay callback signature');
-    }
+    this.verifyWechatpaySignature(input.headers, rawBody, 'callback');
 
     const envelope = JSON.parse(rawBody) as WechatNotificationEnvelope;
     const resource = envelope.resource;
@@ -230,12 +254,15 @@ export class WechatPayClient {
     return {
       eventId: envelope.id?.trim() || this.computeDigest(rawBody),
       paymentIntentId,
+      appId: transaction.appid ?? null,
+      mchId: transaction.mchid ?? null,
       transactionId: transaction.transaction_id ?? null,
       tradeState: transaction.trade_state ?? 'UNKNOWN',
       tradeStateDesc: transaction.trade_state_desc ?? null,
       successTime: transaction.success_time
         ? new Date(transaction.success_time)
         : null,
+      amount: transaction.amount ?? null,
       resource: transaction,
       rawEnvelope: envelope,
     };
@@ -255,7 +282,7 @@ export class WechatPayClient {
     return this.computeDigest(`${flattened}\n\n${body}`);
   }
 
-  private buildMiniappPaymentParams(prepayId: string): WechatMiniappPaymentParams {
+  buildMiniappPaymentParams(prepayId: string): WechatMiniappPaymentParams {
     const config = this.getConfig();
     const timeStamp = Math.floor(Date.now() / 1000).toString();
     const nonceStr = randomBytes(16).toString('hex');
@@ -272,6 +299,14 @@ export class WechatPayClient {
       package: packageValue,
       signType: 'RSA',
       paySign: signer.sign(config.privateKey, 'base64'),
+    };
+  }
+
+  getMerchantIdentity(): WechatMerchantIdentity {
+    const config = this.getConfig();
+    return {
+      appId: config.appId,
+      mchId: config.mchId,
     };
   }
 
@@ -292,22 +327,45 @@ export class WechatPayClient {
     const signature = signer.sign(config.privateKey, 'base64');
     const authorization = `WECHATPAY2-SHA256-RSA2048 mchid="${config.mchId}",nonce_str="${nonceStr}",signature="${signature}",timestamp="${timestamp}",serial_no="${config.merchantSerialNo}"`;
 
-    const response = await fetch(url, {
-      method: input.method,
-      headers: {
-        Accept: 'application/json',
-        Authorization: authorization,
-        'Content-Type': 'application/json',
-        'User-Agent': 'TuneTime-Backend/1.0',
-      },
-      body: body || undefined,
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), config.requestTimeoutMs);
+    let response: Response;
+
+    try {
+      response = await fetch(url, {
+        method: input.method,
+        headers: {
+          Accept: 'application/json',
+          Authorization: authorization,
+          'Content-Type': 'application/json',
+          'User-Agent': 'TuneTime-Backend/1.0',
+        },
+        body: body || undefined,
+        signal: controller.signal,
+      });
+    } catch (error) {
+      const aborted =
+        error instanceof Error &&
+        (error.name === 'AbortError' || controller.signal.aborted);
+      if (aborted) {
+        throw new ServiceUnavailableException('WeChat Pay request timed out');
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    const text = await response.text();
+    this.verifyWechatpaySignature(
+      this.headersToRecord(response.headers),
+      text,
+      'response',
+    );
 
     if (response.status === 204) {
       return undefined as T;
     }
 
-    const text = await response.text();
     if (!response.ok) {
       let payload: WechatPayApiErrorPayload | null = null;
       try {
@@ -322,6 +380,44 @@ export class WechatPayClient {
     }
 
     return JSON.parse(text) as T;
+  }
+
+  private verifyWechatpaySignature(
+    headers: Record<string, string | string[] | undefined>,
+    body: string,
+    context: 'callback' | 'response',
+  ) {
+    const config = this.getConfig();
+    const timestamp = this.requireHeader(headers, 'wechatpay-timestamp');
+    const nonce = this.requireHeader(headers, 'wechatpay-nonce');
+    const signature = this.requireHeader(headers, 'wechatpay-signature');
+    const serial = this.requireHeader(headers, 'wechatpay-serial');
+
+    if (serial !== config.platformSerialNo) {
+      throw new UnauthorizedException(
+        `Unexpected WeChat Pay ${context} serial number`,
+      );
+    }
+
+    const timestampSeconds = Number(timestamp);
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    if (
+      !Number.isInteger(timestampSeconds) ||
+      Math.abs(nowSeconds - timestampSeconds) > MAX_WECHAT_PAY_CLOCK_SKEW_SECONDS
+    ) {
+      throw new UnauthorizedException(
+        `Expired WeChat Pay ${context} signature timestamp`,
+      );
+    }
+
+    const message = `${timestamp}\n${nonce}\n${body}\n`;
+    const verifier = createVerify('RSA-SHA256');
+    verifier.update(message);
+    verifier.end();
+    const verified = verifier.verify(config.platformPublicKey, signature, 'base64');
+    if (!verified) {
+      throw new UnauthorizedException(`Invalid WeChat Pay ${context} signature`);
+    }
   }
 
   private decryptResource(input: {
@@ -359,8 +455,27 @@ export class WechatPayClient {
     return Array.isArray(value) ? value[0] : value;
   }
 
+  private headersToRecord(headers: Headers) {
+    const record: Record<string, string> = {};
+    headers.forEach((value, key) => {
+      record[key.toLowerCase()] = value;
+    });
+    return record;
+  }
+
   private computeDigest(input: string) {
     return createHash('sha256').update(input).digest('hex');
+  }
+
+  private resolvePrepayExpiresAt(timeExpire?: Date | null) {
+    const providerExpiry = new Date(Date.now() + 2 * 60 * 60 * 1000);
+    if (!timeExpire) {
+      return providerExpiry;
+    }
+
+    return timeExpire.getTime() < providerExpiry.getTime()
+      ? timeExpire
+      : providerExpiry;
   }
 
   private getConfig(): WechatPayConfig {
@@ -368,6 +483,7 @@ export class WechatPayClient {
     const mchId = process.env.WECHAT_PAY_MCH_ID?.trim();
     const merchantSerialNo =
       process.env.WECHAT_PAY_MCH_CERT_SERIAL_NO?.trim();
+    const platformSerialNo = process.env.WECHAT_PAY_PLATFORM_SERIAL_NO?.trim();
     const notifyUrl = process.env.WECHAT_PAY_NOTIFY_URL?.trim();
     const apiV3Key = process.env.WECHAT_PAY_API_V3_KEY?.trim();
     const privateKeyPem = process.env.WECHAT_PAY_PRIVATE_KEY_PEM
@@ -381,6 +497,7 @@ export class WechatPayClient {
       !appId ||
       !mchId ||
       !merchantSerialNo ||
+      !platformSerialNo ||
       !notifyUrl ||
       !apiV3Key ||
       !privateKeyPem ||
@@ -401,10 +518,22 @@ export class WechatPayClient {
       appId,
       mchId,
       merchantSerialNo,
+      platformSerialNo,
       notifyUrl,
       apiV3Key,
       privateKey: createPrivateKey(privateKeyPem),
       platformPublicKey: createPublicKey(platformPublicKeyPem),
+      requestTimeoutMs: this.getRequestTimeoutMs(),
     };
+  }
+
+  private getRequestTimeoutMs() {
+    const timeoutMs = Number(
+      process.env.WECHAT_PAY_REQUEST_TIMEOUT_MS ??
+        DEFAULT_WECHAT_PAY_REQUEST_TIMEOUT_MS,
+    );
+    return Number.isFinite(timeoutMs) && timeoutMs > 0
+      ? timeoutMs
+      : DEFAULT_WECHAT_PAY_REQUEST_TIMEOUT_MS;
   }
 }

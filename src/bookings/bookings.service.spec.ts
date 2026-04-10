@@ -187,6 +187,14 @@ describe('BookingsService', () => {
     tokenPayload: {},
   };
 
+  const adminUser = {
+    userId: 'user_admin_1',
+    activeRole: PlatformRole.ADMIN,
+    roles: [PlatformRole.ADMIN],
+    status: UserStatus.ACTIVE,
+    tokenPayload: {},
+  };
+
   let service: BookingsService;
 
   beforeEach(() => {
@@ -551,7 +559,7 @@ describe('BookingsService', () => {
       }),
     );
 
-    const result = await service.updatePayment(guardianUser, 'booking_1', {
+    const result = await service.updatePayment(adminUser, 'booking_1', {
       paymentStatus: PaymentStatus.PAID,
     });
 
