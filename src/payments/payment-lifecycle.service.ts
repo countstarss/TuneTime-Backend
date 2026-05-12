@@ -5,6 +5,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { isMvpCapabilityEnabled } from '../common/mvp-capabilities';
+import { FundsService } from './funds.service';
 import { DEFAULT_PAYMENT_SWEEP_INTERVAL_MS } from './payments.constants';
 import { PaymentsService } from './payments.service';
 
@@ -13,7 +14,10 @@ export class PaymentLifecycleService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PaymentLifecycleService.name);
   private timer: NodeJS.Timeout | null = null;
 
-  constructor(private readonly paymentsService: PaymentsService) {}
+  constructor(
+    private readonly paymentsService: PaymentsService,
+    private readonly fundsService: FundsService,
+  ) {}
 
   onModuleInit() {
     if (
@@ -25,13 +29,18 @@ export class PaymentLifecycleService implements OnModuleInit, OnModuleDestroy {
     }
 
     const intervalMs = Number(
-      process.env.PAYMENT_SWEEP_INTERVAL_MS ?? DEFAULT_PAYMENT_SWEEP_INTERVAL_MS,
+      process.env.PAYMENT_SWEEP_INTERVAL_MS ??
+        DEFAULT_PAYMENT_SWEEP_INTERVAL_MS,
     );
 
     this.timer = setInterval(() => {
       this.paymentsService.expirePendingPayments().catch((error: unknown) => {
         const message = error instanceof Error ? error.message : String(error);
         this.logger.error(`支付状态巡检失败: ${message}`);
+      });
+      this.fundsService.settleReadyBookings().catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        this.logger.error(`老师钱包结算巡检失败: ${message}`);
       });
     }, intervalMs);
     this.timer.unref();
